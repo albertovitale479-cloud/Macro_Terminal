@@ -1,0 +1,14 @@
+# I TUOI DATI: restano solo sul tuo computer, mai su GitHub
+data.json
+data.json.bak
+macro-terminal-backup-*.json
+
+# ambiente Python e file temporanei
+.venv/
+__pycache__/
+*.pyc
+*.tmp
+*.log
+.env
+.DS_Store
+.claude/

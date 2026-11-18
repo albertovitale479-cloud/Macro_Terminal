@@ -1,0 +1,4 @@
+# fine riga corretta sui lanciatori (Mac/Linux = LF, Windows = CRLF)
+*.sh text eol=lf
+*.command text eol=lf
+*.bat text eol=crlf
