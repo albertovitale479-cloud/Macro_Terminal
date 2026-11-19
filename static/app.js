@@ -323,17 +323,89 @@ const clonePos = p => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, {
 
 /* ───────── suono del radar (sonar da sottomarino, sintetizzato con Web Audio) ───────── */
 let audioCtx = null;
-// Traccia: static/sonar.wav (o .mp3 / .ogg), riprodotta in loop con il suo timing originale.
-// Se il file manca, ripiega su un ping sintetizzato (1050 Hz, 4 ping a ogni giro del radar).
-let sonarEl = null, sonarTried = false;
+// Il ping del sonar viene dalla traccia static/sonar.wav: ne uso il primo ping, riprodotto solo quando il fascio colpisce una valuta.
+// Se il file manca, ripiega su un ping sintetizzato (1050 Hz). L'unico suono continuo è il mare.
+const PING_START = 0.65, PING_DUR = 0.9;   // dove si trova il primo ping dentro sonar.wav (secondi)
+let sonarBuf = null, sonarTried = false;
 async function loadSonarFile() {
-  if (sonarTried) return; sonarTried = true;
-  for (const ext of ['wav', 'mp3', 'ogg']) {
-    try { const r = await fetch('/static/sonar.' + ext, { method: 'HEAD' }); if (r.ok) { sonarEl = new Audio('/static/sonar.' + ext); sonarEl.loop = true; sonarEl.volume = 0.7; return; } } catch (e) {}
-  }
+  if (sonarTried || !audioCtx) return; sonarTried = true;
+  try {
+    const r = await fetch('/static/sonar.wav'); if (!r.ok) return;
+    sonarBuf = await audioCtx.decodeAudioData(await r.arrayBuffer());
+  } catch (e) {}
 }
 const soundOn = () => pref.get('sound', '0') === '1';
-function stopSonar() { if (sonarEl) sonarEl.pause(); }
+function stopSonar() {
+  stopSea(); cancelAnimationFrame(sweepRAF); sweepRAF = 0; lastAng = null;
+}
+
+/* — mare di fondo: rumore bruno filtrato, con un lentissimo "respiro" del volume. Generato qui: nessun file, loop senza stacchi. — */
+const SEA_VOL = 0.03;      // volume del mare (molto basso)
+let sea = null;
+function startSea() {
+  if (sea || !audioCtx) return;
+  const sr = audioCtx.sampleRate, len = Math.floor(sr * 6), f = Math.floor(sr * 0.5);
+  const buf = audioCtx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  let last = 0; for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+  for (let i = 0; i < f; i++) { const k = i / f; d[i] = d[i] * k + d[len - f + i] * (1 - k); }   // la coda sfuma nell'inizio: il loop non ha stacchi
+  const src = audioCtx.createBufferSource(); src.buffer = buf; src.loop = true; src.loopEnd = (len - f) / sr;
+  const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+  const g = audioCtx.createGain(); g.gain.value = SEA_VOL;
+  const lfo = audioCtx.createOscillator(), lg = audioCtx.createGain(); lfo.frequency.value = 0.1; lg.gain.value = SEA_VOL * 0.45;
+  lfo.connect(lg); lg.connect(g.gain); src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+  src.start(); lfo.start(); sea = { src, lfo, g };
+}
+function stopSea() {
+  if (!sea) return;
+  try { sea.src.stop(); sea.lfo.stop(); sea.g.disconnect(); } catch (e) {}
+  sea = null;
+}
+
+/* — ping del sonar quando il fascio passa su una valuta lontana dalla linea centrale (Hawkish/Dovish) — */
+const BAL = 0.12;          // "bilanciate" = entro il 12% dell'altezza della mappa sopra/sotto la linea centrale
+const SWEEP_MS = 8000;     // durata di un giro del radar (deve coincidere con l'animazione "sweep" nel CSS)
+const LEAD_MS = 60;        // anticipo: compensa la latenza dell'audio, così il suono cade quando il fascio tocca la bolla
+let sweepRAF = 0, sweepAnim = null, lastAng = null, lastT = 0;
+function blip() {   // il ping del sonar sul bersaglio
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  if (!sonarBuf) { sonarPing(); return; }
+  const src = audioCtx.createBufferSource(), g = audioCtx.createGain();
+  src.buffer = sonarBuf; g.gain.value = 0.9;
+  src.connect(g); g.connect(audioCtx.destination);
+  src.start(audioCtx.currentTime, PING_START, PING_DUR);
+}
+function tickSweep() {
+  sweepRAF = requestAnimationFrame(tickSweep);
+  const map = $('#map');
+  if (!map || !soundOn() || !audioCtx || audioCtx.state !== 'running') { lastAng = null; return; }
+  if (!sweepAnim || sweepAnim.playState === 'idle' || sweepAnim.playState === 'finished') sweepAnim = document.getAnimations().find(a => a.animationName === 'sweep') || null;
+  if (!sweepAnim || sweepAnim.currentTime == null) { lastAng = null; return; }
+  const ang = ((Number(sweepAnim.currentTime) + LEAD_MS) % SWEEP_MS) / SWEEP_MS * 360;   // 0° = in alto, in senso orario: come il fascio
+  if (lastAng != null) {
+    let delta = ang - lastAng; if (delta < 0) delta += 360;
+    const now = performance.now(), gap = now - lastT; lastT = now;
+    // un frame in ritardo (anche 1 s) non fa perdere i bersagli; si scarta solo il ritorno da una scheda rimasta in background
+    if (delta > 0 && delta < 150 && gap < 1500) {
+      const mr = map.getBoundingClientRect(), cx = mr.width / 2, cy = mr.height / 2;
+      $$('.bubble', map).forEach(b => {
+        const r = b.getBoundingClientRect(), x = r.left + r.width / 2 - mr.left - cx, y = r.top + r.height / 2 - mr.top - cy;
+        if (Math.abs(y) / mr.height <= BAL) return;                     // bolla bilanciata: silenzio
+        let a = Math.atan2(x, -y) * 180 / Math.PI; if (a < 0) a += 360;  // angolo della bolla visto dal centro
+        const crossed = lastAng <= ang ? (a > lastAng && a <= ang) : (a > lastAng || a <= ang);
+        if (crossed) blip();
+      });
+    }
+  }
+  lastAng = ang; lastT = performance.now();
+}
+async function startSound() {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  await Promise.race([audioCtx.resume(), new Promise(r => setTimeout(r, 400))]);
+  if (audioCtx.state !== 'running') throw new Error('audio bloccato');
+  await loadSonarFile();
+  startSea();
+  cancelAnimationFrame(sweepRAF); lastAng = null; sweepRAF = requestAnimationFrame(tickSweep);
+}
 function sonarPing() {   // ping sintetizzato (solo se manca il file)
   if (!audioCtx || audioCtx.state !== 'running') return;
   const t0 = audioCtx.currentTime;
@@ -347,8 +419,6 @@ function sonarPing() {   // ping sintetizzato (solo se manca il file)
 }
 async function initSound() {
   const btn = $('#snd'), bg = $('.map-bg'); if (!btn || !bg) return;
-  await loadSonarFile();
-  if (!$('#snd')) return;   // la pagina è cambiata mentre caricavo
   const paint = () => {
     const on = soundOn();
     btn.setAttribute('aria-pressed', on);
@@ -358,19 +428,11 @@ async function initSound() {
   btn.onclick = () => {
     const on = !soundOn();
     pref.set('sound', on ? '1' : '0');
-    if (on) {
-      if (sonarEl) sonarEl.play().catch(() => {});
-      else try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume().then(sonarPing); } catch (e) {}
-    } else stopSonar();
+    if (on) startSound().catch(() => { pref.set('sound', '0'); paint(); }); else stopSonar();
     paint();
   };
-  // senza file: ping sintetizzato, 4 a ogni giro del radar
-  bg.addEventListener('animationiteration', e => {
-    if (sonarEl || e.animationName !== 'sweep' || !soundOn()) return;
-    sonarPing(); [2000, 4000, 6000].forEach(ms => setTimeout(() => { if (soundOn() && document.body.contains(bg)) sonarPing(); }, ms));
-  });
   // tornando sulla Home con il suono acceso riparte; se il browser lo blocca (nessun clic ancora fatto) resta spento
-  if (soundOn() && sonarEl) sonarEl.play().catch(() => { pref.set('sound', '0'); paint(); });
+  if (soundOn()) startSound().catch(() => { pref.set('sound', '0'); paint(); });
   paint();
 }
 
