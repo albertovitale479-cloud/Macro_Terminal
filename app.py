@@ -20,7 +20,7 @@ from flask import Flask, cli, jsonify, render_template, request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE, "data.json")
-COLLECTIONS = ("countries", "risks", "trades")
+COLLECTIONS = ("countries", "risks", "trades", "tools")
 PORT = int(os.environ.get("MT_PORT", "5051"))
 
 app = Flask(__name__)
@@ -152,6 +152,22 @@ SEED = {
          "invalid": "Rientro sotto 1.1050",
          "note": "Chiusa vicino al target 1."},
     ],
+    # Link utili (pagina Tool): da qui puoi aggiungerne, cambiarli o eliminarli dall'app.
+    "tools": [
+        {"id": "tool_1", "name": "Trading Economics", "cat": "Dati",
+         "d": "Calendario economico, indicatori e previsioni per ogni paese.", "u": "https://tradingeconomics.com/"},
+        {"id": "tool_2", "name": "BlackRock Weekly Market Commentary", "cat": "Analisi",
+         "d": "Il commento settimanale del BlackRock Investment Institute sui mercati.",
+         "u": "https://www.blackrock.com/us/individual/insights/blackrock-investment-institute/weekly-commentary"},
+        {"id": "tool_3", "name": "Federal Reserve (FED)", "cat": "Banche centrali", "code": "USD",
+         "d": "Report, comunicati e verbali sulla politica monetaria USA.", "u": "https://www.federalreserve.gov/monetarypolicy.htm"},
+        {"id": "tool_4", "name": "European Central Bank (BCE)", "cat": "Banche centrali", "code": "EUR",
+         "d": "Bollettino economico, decisioni e report della BCE.", "u": "https://www.ecb.europa.eu/press/economic-bulletin/html/index.en.html"},
+        {"id": "tool_5", "name": "Bank of Canada (BOC)", "cat": "Banche centrali", "code": "CAD",
+         "d": "Monetary Policy Report e decisioni sui tassi del Canada.", "u": "https://www.bankofcanada.ca/publications/mpr/"},
+        {"id": "tool_6", "name": "Bank of England (BOE)", "cat": "Banche centrali", "code": "GBP",
+         "d": "Monetary Policy Report e verbali del MPC del Regno Unito.", "u": "https://www.bankofengland.co.uk/monetary-policy-report/monetary-policy-reports"},
+    ],
 }
 
 
@@ -161,8 +177,14 @@ def load():
         return json.loads(json.dumps(SEED))
     with open(DATA_FILE, "r", encoding="utf-8") as fh:
         data = json.load(fh)
+    changed = False
     for c in COLLECTIONS:
-        data.setdefault(c, [])
+        if c not in data:
+            # una sola volta: i Tool partono con l'elenco di esempio, poi sono tuoi (anche vuoti)
+            data[c] = json.loads(json.dumps(SEED.get(c, []))) if c == "tools" else []
+            changed = True
+    if changed:
+        save(data)
     return data
 
 

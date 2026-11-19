@@ -9,6 +9,7 @@ Terminale personale per l'analisi macro-economica, in stile Pip-Boy. Si usa in l
 - **Macro per Paese**: inflazione, disoccupazione, tassi e PIL con **attuale, previsto, precedente**. La sorpresa (attuale − previsto) si calcola da sola.
 - **Idee di Trade**: livelli (ingresso, stop, target), R:R automatico, tesi, driver macro, trigger e invalidazione. Un segnale dice se la direzione è in linea con i bias scelti sulle valute.
 - **Rischi Geopolitici**: matrice probabilità × impatto, trend, scenari, trigger e direzione per valuta.
+- **Tool**: i link che usi ogni giorno (es. BlackRock Weekly Market Commentary), modificabili dall'app: aggiungi, cambia o elimina quelli che non funzionano.
 - **Temi**: Pip-Boy (predefinito), scuro, chiaro, automatico (Impostazioni).
 
 ## Avvio

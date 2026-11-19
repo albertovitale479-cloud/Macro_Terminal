@@ -145,3 +145,14 @@ window.EN = {
   'Home': 'Home', 'Dati inseriti a mano': 'Manually entered data',
   'Nascondi menu': 'Hide menu', 'Mostra menu': 'Show menu',
 };
+
+// pagina Tool modificabile
+Object.assign(window.EN, {
+  'Modifica': 'Edit', 'Fine': 'Done', 'Nuovo tool': 'New tool', 'Modifica tool': 'Edit tool', 'Tool eliminato': 'Tool deleted',
+  'Nome': 'Name', 'Descrizione': 'Description', 'Indirizzo (link)': 'Address (link)', 'Prova il link': 'Test the link',
+  'Link non valido': 'Invalid link', 'Altro': 'Other',
+  'Aggiungi o modifica i link che usi per la tua analisi.': 'Add or edit the links you use for your analysis.',
+  'Modalità modifica: clicca ✎ per cambiare un tool o ✕ per eliminarlo (utile per i link che non funzionano).': 'Edit mode: click ✎ to change a tool or ✕ to delete it (handy for broken links).',
+  'Nessun tool. Aggiungine uno con “Nuovo tool”.': 'No tools yet. Add one with “New tool”.',
+  'Inserisci un nome e un link valido (https://…)': 'Enter a name and a valid link (https://…)',
+});

@@ -601,3 +601,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .snd svg { width: 16px; height: 16px; }
 .snd.on { color: var(--accent); border-color: var(--accent); }
 .map-hint:has(.snd) { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+/* ───────── tool modificabili ───────── */
+.tool.editing { cursor: pointer; border-top-color: var(--warn); }
+.tool.editing:hover { transform: none; }
+.tool.broken { opacity: .6; border-top-color: var(--neg); }
+.tool-act { display: flex; gap: 6px; }
+.tool-act button { width: 30px; height: 30px; display: grid; place-items: center; background: var(--solid); border: 1px solid var(--line-strong); color: var(--text-2); font-size: 14px; line-height: 1; transition: .15s; }
+.tool-act button:hover { border-color: var(--accent); color: var(--accent); }
+.tool-act button.danger:hover { border-color: var(--neg); color: var(--neg); }
+.btn.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.edit-hint { margin: -6px 0 18px; padding: 9px 14px; font-size: 12px; color: var(--warn); border: 1px dashed color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, transparent); }

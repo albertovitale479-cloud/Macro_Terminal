@@ -44,7 +44,7 @@ const STATUS = {
 const BUBBLE_D = { small: 46, medium: 62, large: 80 };
 
 /* ───────── stato e preferenze ───────── */
-const S = { countries: [], risks: [], trades: [] };
+const S = { countries: [], risks: [], trades: [], tools: [] };
 const pref = {
   get(k, d) { try { return localStorage.getItem('mt_' + k) ?? d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('mt_' + k, v); } catch (e) {} },
@@ -64,7 +64,7 @@ async function api(method, url, body) {
   if (!r.ok) throw new Error(method + ' ' + url + ' → ' + r.status);
   return r.json();
 }
-async function load() { const d = await api('GET', '/api/data'); S.countries = d.countries; S.risks = d.risks; S.trades = d.trades || []; }
+async function load() { const d = await api('GET', '/api/data'); S.countries = d.countries; S.risks = d.risks; S.trades = d.trades || []; S.tools = d.tools || []; }
 
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1900); }
@@ -911,28 +911,81 @@ function openTradeModal(id) {
   };
 }
 
-/* ───────── pagina TOOL: gallery di link utili ───────── */
-// Per aggiungere un sito basta una riga qui. cat = categoria, d = descrizione (chiave i18n), u = indirizzo.
-const TOOLS = [
-  { name: 'Trading Economics',       cat: 'Dati',           d: 'Calendario economico, indicatori e previsioni per ogni paese.', u: 'https://tradingeconomics.com/' },
-  { name: 'BlackRock Weekly Market Commentary', cat: 'Analisi', d: 'Il commento settimanale del BlackRock Investment Institute sui mercati.', u: 'https://www.blackrock.com/corporate/insights/blackrock-investment-institute/publications/weekly-commentary' },
-  { name: 'Federal Reserve (FED)',   cat: 'Banche centrali', d: 'Report, comunicati e verbali sulla politica monetaria USA.', u: 'https://www.federalreserve.gov/monetarypolicy.htm', code: 'USD' },
-  { name: 'European Central Bank (BCE)', cat: 'Banche centrali', d: 'Bollettino economico, decisioni e report della BCE.', u: 'https://www.ecb.europa.eu/press/economic-bulletin/html/index.en.html', code: 'EUR' },
-  { name: 'Bank of Canada (BOC)',    cat: 'Banche centrali', d: 'Monetary Policy Report e decisioni sui tassi del Canada.', u: 'https://www.bankofcanada.ca/publications/mpr/', code: 'CAD' },
-  { name: 'Bank of England (BOE)',   cat: 'Banche centrali', d: 'Monetary Policy Report e verbali del MPC del Regno Unito.', u: 'https://www.bankofengland.co.uk/monetary-policy-report/monetary-policy-reports', code: 'GBP' },
-];
+/* ───────── pagina TOOL: gallery di link utili (modificabile) ───────── */
+// I tool stanno in data.json: puoi aggiungerli, cambiarli o eliminarli dall'app (pulsante "Modifica").
+const toolUrl = u => { const s = String(u || '').trim(); if (!s) return ''; const w = /^[a-z][a-z0-9+.-]*:/i.test(s) ? s : 'https://' + s; return /^https?:\/\//i.test(w) ? w : ''; };
+
 function renderTools() {
-  const cats = [...new Set(TOOLS.map(x => x.cat))];
+  const edit = pref.get('tools_edit', '0') === '1';
+  const list = S.tools;
+  const catOf = x => (x.cat || '').trim() || 'Altro';
+  const cats = [...new Set(list.map(catOf))];
+  const card = (x, i) => {
+    const u = toolUrl(x.u); let host = u;
+    try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) {}
+    const ico = esc(x.code || String(x.name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase());
+    const body = `<h3>${esc(x.name)}</h3><p>${tx(x.d || '')}</p><small>${esc(host) || tx('Link non valido')}</small>`;
+    const delay = `style="animation-delay:${i * 45}ms"`;
+    if (edit) return `<div class="tool editing" data-id="${esc(x.id)}" ${delay}><div class="tool-top"><span class="tool-ico">${ico}</span>
+      <span class="tool-act"><button type="button" data-act="edit" title="${tx('Modifica')}">✎</button><button type="button" data-act="del" class="danger" title="${tx('Elimina')}">✕</button></span></div>${body}</div>`;
+    if (!u) return `<div class="tool broken" title="${tx('Link non valido')}" ${delay}><div class="tool-top"><span class="tool-ico">${ico}</span></div>${body}</div>`;
+    return `<a class="tool" href="${esc(u)}" target="_blank" rel="noopener noreferrer" ${delay}><div class="tool-top"><span class="tool-ico">${ico}</span><svg viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></div>${body}</a>`;
+  };
   $('#main').innerHTML = `<div class="fade-in">
     <div class="page-head"><div><div class="eyebrow">${tx('Risorse')}</div><h1 class="page-title">${tx('Tool')}</h1>
-      <p class="page-sub">${tx('I siti che usi ogni giorno per la tua analisi, a portata di clic. Si aprono in una nuova scheda.')}</p></div></div>
-    ${cats.map(cat => `<section class="section"><div class="section-head"><div><div class="eyebrow">${tx('Categoria')}</div><h2 class="section-title">${tx(cat)}</h2></div></div>
-      <div class="tools">${TOOLS.filter(x => x.cat === cat).map((x, i) => {
-        let host = x.u; try { host = new URL(x.u).hostname.replace(/^www\./, ''); } catch (e) {}
-        return `<a class="tool" href="${esc(x.u)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${i * 45}ms">
-          <div class="tool-top"><span class="tool-ico">${esc(x.code || x.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span><svg viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></div>
-          <h3>${esc(x.name)}</h3><p>${tx(x.d)}</p><small>${esc(host)}</small></a>`; }).join('')}</div></section>`).join('')}
+      <p class="page-sub">${tx('I siti che usi ogni giorno per la tua analisi, a portata di clic. Si aprono in una nuova scheda.')}</p></div>
+      <div class="actions"><button class="btn ${edit ? 'on' : ''}" id="tools-edit">${edit ? tx('Fine') : tx('Modifica')}</button>
+        <button class="btn primary" id="add-tool"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${tx('Nuovo tool')}</button></div></div>
+    ${edit ? `<div class="edit-hint">${tx('Modalità modifica: clicca ✎ per cambiare un tool o ✕ per eliminarlo (utile per i link che non funzionano).')}</div>` : ''}
+    ${list.length ? cats.map(cat => `<section class="section"><div class="section-head"><div><div class="eyebrow">${tx('Categoria')}</div><h2 class="section-title">${tx(cat)}</h2></div></div>
+      <div class="tools">${list.filter(x => catOf(x) === cat).map(card).join('')}</div></section>`).join('')
+      : `<div class="empty">${tx('Nessun tool. Aggiungine uno con “Nuovo tool”.')}</div>`}
   </div>`;
+
+  $('#tools-edit').onclick = () => { pref.set('tools_edit', edit ? '0' : '1'); renderTools(); };
+  $('#add-tool').onclick = () => openToolModal(null);
+  $$('.tool.editing').forEach(el => {
+    el.onclick = () => openToolModal(el.dataset.id);
+    $$('[data-act]', el).forEach(b => b.onclick = async e => {
+      e.stopPropagation();
+      if (b.dataset.act === 'edit') return openToolModal(el.dataset.id);
+      const t = S.tools.find(x => x.id === el.dataset.id); if (!t) return;
+      if (!confirm(tx('Eliminare {n}? L\'operazione non si può annullare.', { n: t.name }))) return;
+      try { await api('DELETE', `/api/tools/${t.id}`); S.tools = S.tools.filter(x => x.id !== t.id); rerender(); toast(tx('Tool eliminato')); }
+      catch (err) { toast(tx('Errore nel salvataggio')); }
+    });
+  });
+}
+
+function openToolModal(id) {
+  const t = id ? S.tools.find(x => x.id === id) : { name: '', u: '', cat: '', d: '' };
+  const cats = [...new Set(S.tools.map(x => (x.cat || '').trim()).filter(Boolean))];
+  openModal(`<h3>${id ? tx('Modifica tool') : tx('Nuovo tool')}</h3><div class="sub">${tx('Aggiungi o modifica i link che usi per la tua analisi.')}</div>
+    <div class="form-grid">
+      <div class="field s3"><label>${tx('Nome')}</label><input id="tl-name" value="${esc(t.name)}" placeholder="BlackRock Weekly Market Commentary"></div>
+      <div class="field s3"><label>${tx('Categoria')}</label><input id="tl-cat" list="tl-cats" value="${esc(t.cat)}" placeholder="${tx('Analisi')}"><datalist id="tl-cats">${cats.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></div>
+      <div class="field"><label>${tx('Indirizzo (link)')}</label><input id="tl-url" value="${esc(t.u)}" placeholder="https://…"></div>
+      <div class="field"><label>${tx('Descrizione')}</label><textarea id="tl-desc">${esc(t.d ? tx(t.d) : '')}</textarea></div>
+    </div>
+    <div class="modal-foot"><div>${id ? `<button class="btn danger" id="m-del">${tx('Elimina')}</button>` : ''}</div>
+      <div class="actions"><button class="btn" id="tl-test" type="button">${tx('Prova il link')} ↗</button><button class="btn" id="m-cancel">${tx('Annulla')}</button><button class="btn primary" id="m-save">${tx('Salva')}</button></div></div>`);
+  $('#m-cancel').onclick = closeModal;
+  $('#tl-test').onclick = () => { const u = toolUrl($('#tl-url').value); if (!u) { toast(tx('Link non valido')); $('#tl-url').focus(); return; } window.open(u, '_blank', 'noopener,noreferrer'); };
+  if (id) $('#m-del').onclick = async () => {
+    if (!confirm(tx('Eliminare {n}? L\'operazione non si può annullare.', { n: t.name }))) return;
+    try { await api('DELETE', `/api/tools/${id}`); S.tools = S.tools.filter(x => x.id !== id); closeModal(); rerender(); toast(tx('Tool eliminato')); }
+    catch (err) { toast(tx('Errore nel salvataggio')); }
+  };
+  $('#m-save').onclick = async () => {
+    const name = $('#tl-name').value.trim(), u = toolUrl($('#tl-url').value);
+    if (!name) { $('#tl-name').focus(); return; }
+    if (!u) { toast(tx('Inserisci un nome e un link valido (https://…)')); $('#tl-url').focus(); return; }
+    const body = { name, u, cat: $('#tl-cat').value.trim(), d: $('#tl-desc').value.trim() };
+    try {
+      if (id) Object.assign(t, await api('PUT', `/api/tools/${id}`, body)); else S.tools.push(await api('POST', '/api/tools', body));
+      closeModal(); rerender(); toast(tx('Salvato'));
+    } catch (e) { toast(tx('Errore nel salvataggio')); }
+  };
 }
 
 /* ───────── IMPOSTAZIONI ───────── */
