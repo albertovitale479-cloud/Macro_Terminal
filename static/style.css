@@ -183,11 +183,11 @@ a { color: inherit; }
 .map::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
 .map::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
 .map-bg { position: absolute; inset: 0; }
-.map-quad { position: absolute; width: 50%; height: 50%; display: flex; padding: 12px 16px; font-size: 10.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
-.q-tl { left: 0; top: 0; background: color-mix(in srgb, var(--b-short) 4%, transparent); color: var(--b-short); }
-.q-tr { right: 0; top: 0; justify-content: flex-end; background: color-mix(in srgb, var(--b-molto_long) 5%, transparent); color: var(--b-molto_long); }
-.q-bl { left: 0; bottom: 0; align-items: flex-end; background: color-mix(in srgb, var(--b-molto_short) 5%, transparent); color: var(--b-molto_short); }
-.q-br { right: 0; bottom: 0; align-items: flex-end; justify-content: flex-end; background: color-mix(in srgb, var(--b-long) 4%, transparent); color: var(--b-long); }
+.map-band { position: absolute; left: 0; right: 0; height: 50%; display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
+.map-band b { font-weight: 600; letter-spacing: .16em; }
+.map-band span { opacity: .75; font-size: 9.5px; }
+.band-hawk { top: 0; background: color-mix(in srgb, var(--b-molto_long) 5%, transparent); color: var(--b-molto_long); }
+.band-dove { bottom: 0; justify-content: flex-end; background: color-mix(in srgb, var(--b-molto_short) 5%, transparent); color: var(--b-molto_short); }
 .map-grid { position: absolute; inset: 0; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 12.5% 12.5%; opacity: .6; }
 .map-axis-x, .map-axis-y { position: absolute; background: var(--line-strong); }
 .map-axis-x { left: 0; right: 0; top: 50%; height: 1px; }
@@ -195,10 +195,8 @@ a { color: inherit; }
 .map-axis-x::after { content: ""; position: absolute; right: 0; top: -4px; border: 4px solid transparent; border-left: 7px solid var(--line-strong); border-right: 0; }
 .map-axis-y::after { content: ""; position: absolute; top: 0; left: -4px; border: 4px solid transparent; border-bottom: 7px solid var(--line-strong); border-top: 0; }
 .axis-lbl { position: absolute; font-size: 10px; color: var(--text-2); letter-spacing: .12em; text-transform: uppercase; }
-.al-hawk { left: calc(50% + 10px); top: 10px; }
-.al-dove { left: calc(50% + 10px); bottom: 10px; }
-.al-weak { left: 10px; top: calc(50% + 8px); }
-.al-strong { right: 10px; top: calc(50% + 8px); }
+.al-hawk { right: 12px; top: 12px; }
+.al-dove { right: 12px; bottom: 12px; }
 .bubble {
   position: absolute; width: var(--d); height: var(--d); transform: translate(-50%, -50%); border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: grab; user-select: none; touch-action: none; z-index: 2;

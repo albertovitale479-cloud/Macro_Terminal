@@ -1,34 +1,45 @@
 /* Macro Terminal — frontend vanilla JS. Dati in data.json (via API), preferenze in localStorage. */
 'use strict';
 
+/* ───────── lingua (i18n) ───────── */
+// Le stringhe nel codice sono in italiano e fanno da chiave; il dizionario EN (static/i18n.js) le traduce.
+const LANGS = { it: 'Italiano', en: 'English' };
+const LANG = (() => { try { const l = localStorage.getItem('mt_lang'); if (LANGS[l]) return l; } catch (e) {} return (navigator.language || 'it').toLowerCase().startsWith('it') ? 'it' : 'en'; })();
+const LOCALE = LANG === 'en' ? 'en-US' : 'it-IT';
+const tx = (s, v) => {
+  let r = (LANG === 'en' && window.EN && window.EN[s]) || s;
+  if (v) for (const k in v) r = r.split('{' + k + '}').join(v[k]);
+  return r;
+};
+
 /* ───────── configurazione ───────── */
 const BIAS = {
-  molto_short: { label: 'Molto short', short: 'Molto short' },
-  short:       { label: 'Short',       short: 'Short' },
-  neutro:      { label: 'Neutrale',    short: 'Neutrale' },
-  long:        { label: 'Long',        short: 'Long' },
-  molto_long:  { label: 'Molto long',  short: 'Molto long' },
+  molto_short: { label: tx('Molto short'), short: tx('Molto short') },
+  short:       { label: 'Short',            short: 'Short' },
+  neutro:      { label: tx('Neutrale'),     short: tx('Neutrale') },
+  long:        { label: 'Long',             short: 'Long' },
+  molto_long:  { label: tx('Molto long'),   short: tx('Molto long') },
 };
 const BIAS_KEYS = Object.keys(BIAS);
 const bcol = k => `var(--b-${BIAS[k] ? k : 'neutro'})`;
 
 // sign: +1 = un dato sopra il previsto è favorevole alla valuta; -1 = sfavorevole
 const INDS = [
-  { k: 'inflation',    label: 'Inflazione',     short: 'CPI',   sign: +1, hint: 'sopra il previsto = più hawkish (favorevole alla valuta)' },
-  { k: 'unemployment', label: 'Disoccupazione', short: 'UNEMP', sign: -1, hint: 'sopra il previsto = mercato del lavoro più debole (sfavorevole)' },
-  { k: 'rate',         label: 'Tassi',          short: 'RATE',  sign: +1, hint: 'sopra il previsto = più restrittivo (favorevole alla valuta)' },
-  { k: 'gdp',          label: 'PIL',            short: 'GDP',   sign: +1, hint: 'sopra il previsto = crescita più forte (favorevole)' },
+  { k: 'inflation',    label: tx('Inflazione'),     short: 'CPI',   sign: +1, hint: tx('sopra il previsto = più hawkish (favorevole alla valuta)') },
+  { k: 'unemployment', label: tx('Disoccupazione'), short: 'UNEMP', sign: -1, hint: tx('sopra il previsto = mercato del lavoro più debole (sfavorevole)') },
+  { k: 'rate',         label: tx('Tassi'),          short: 'RATE',  sign: +1, hint: tx('sopra il previsto = più restrittivo (favorevole alla valuta)') },
+  { k: 'gdp',          label: tx('PIL'),            short: 'GDP',   sign: +1, hint: tx('sopra il previsto = crescita più forte (favorevole)') },
 ];
 const IMPACT = { alto: 3, medio: 2, basso: 1 };
 const SEV = {
-  alto:  { label: 'Alto',  color: 'var(--b-molto_short)' },
-  medio: { label: 'Medio', color: 'var(--warn)' },
-  basso: { label: 'Basso', color: 'var(--b-long)' },
+  alto:  { label: tx('Alto'),  color: 'var(--b-molto_short)' },
+  medio: { label: tx('Medio'), color: 'var(--warn)' },
+  basso: { label: tx('Basso'), color: 'var(--b-long)' },
 };
 const STATUS = {
-  monitoraggio: { label: 'In monitoraggio', color: 'var(--b-long)' },
-  escalation:   { label: 'In escalation',   color: 'var(--b-molto_short)' },
-  rientrato:    { label: 'Rientrato',       color: 'var(--text-3)' },
+  monitoraggio: { label: tx('In monitoraggio'), color: 'var(--b-long)' },
+  escalation:   { label: tx('In escalation'),   color: 'var(--b-molto_short)' },
+  rientrato:    { label: tx('Rientrato'),       color: 'var(--text-3)' },
 };
 const BUBBLE_D = { small: 46, medium: 62, large: 80 };
 
@@ -74,12 +85,12 @@ function allSurprises() {
 
 const ARROW = { up: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>', down: '<svg viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>', flat: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>' };
 function surpriseChip(s, cfg) {
-  if (!s) return '<span class="chip flat">n/d</span>';
+  if (!s) return `<span class="chip flat">${tx('n/d')}</span>`;
   const cls = s.sig > 0 ? 'pos' : s.sig < 0 ? 'neg' : 'flat';
   const ar = s.d > 0 ? ARROW.up : s.d < 0 ? ARROW.down : ARROW.flat;
-  return `<span class="chip ${cls}" title="${esc(cfg.hint)}">${ar}${s.d === 0 ? 'in linea' : sgn(s.d)}</span>`;
+  return `<span class="chip ${cls}" title="${esc(cfg.hint)}">${ar}${s.d === 0 ? tx('in linea') : sgn(s.d)}</span>`;
 }
-const impactBars = lv => `<span class="imp ${esc(lv)}" title="Impatto ${esc(lv)}"><i></i><i></i><i></i></span>`;
+const impactBars = lv => `<span class="imp ${esc(lv)}" title="${tx('Impatto ' + lv)}"><i></i><i></i><i></i></span>`;
 const flagOf = c => `<span class="fl">${esc(c.flag || '🏳️')}</span>`;
 
 /* ───────── router ───────── */
@@ -104,78 +115,76 @@ function renderHome() {
   const hot = sur.filter(x => x.s.sig !== 0 && x.i.impact === 'alto').length;
   const riskHigh = S.risks.filter(r => rActive(r) && rLevel(r) === 'alto').length;
   const riskUp = S.risks.filter(r => rActive(r) && rTrend(r) === 'su').length;
-  const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const today = new Date().toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const counts = BIAS_KEYS.map(k => ({ k, n: cs.filter(c => c.bias === k).length }));
   const showSample = pref.get('hide_sample', '0') !== '1';
 
   $('#main').innerHTML = `<div class="fade-in">
     <section class="hero">
       <div class="eyebrow">${esc(today)}</div>
-      <h1>Il quadro macro,<br><em>a colpo d'occhio.</em></h1>
-      <p>Il tuo terminale personale per l'analisi macro-economica: inflazione, disoccupazione, tassi e PIL per ogni paese. I dati li inserisci e li curi tu, qui sono salvati solo in locale.</p>
+      <h1>${tx('Il quadro macro,')}<br><em>${tx("a colpo d'occhio.")}</em></h1>
+      <p>${tx("Il tuo terminale personale per l'analisi macro-economica: inflazione, disoccupazione, tassi e PIL per ogni paese. I dati li inserisci e li curi tu, qui sono salvati solo in locale.")}</p>
       <div class="hero-meta">
-        <span class="pill"><i></i>${cs.length} paesi seguiti</span>
-        <span class="pill" style="--c:var(--b-long)"><i></i>${S.risks.length} rischi geopolitici</span>
-        ${showSample ? `<span class="pill" style="--c:var(--warn)"><i></i>Dati di esempio: sostituiscili dalla pagina Macro <b id="hide-sample" style="cursor:pointer;margin-left:4px" title="Nascondi">✕</b></span>` : ''}
+        <span class="pill"><i></i>${cs.length} ${tx('paesi seguiti')}</span>
+        <span class="pill" style="--c:var(--b-long)"><i></i>${S.risks.length} ${tx('rischi geopolitici')}</span>
+        ${showSample ? `<span class="pill" style="--c:var(--warn)"><i></i>${tx('Dati di esempio: sostituiscili dalla pagina Macro')} <b id="hide-sample" style="cursor:pointer;margin-left:4px" title="${tx('Nascondi')}">✕</b></span>` : ''}
       </div>
     </section>
 
     <div class="kpis">
-      <div class="kpi" style="--c:var(--accent)"><div class="kpi-label">Paesi seguiti</div><div class="kpi-value">${cs.length}</div><div class="kpi-sub">${counts.filter(x => x.n).length} bias diversi in uso</div></div>
-      <div class="kpi" style="--c:var(--pos)"><div class="kpi-label">Sorprese positive</div><div class="kpi-value">${pos}</div><div class="kpi-sub">su ${sur.length} indicatori con previsto</div></div>
-      <div class="kpi" style="--c:var(--neg)"><div class="kpi-label">Sorprese negative</div><div class="kpi-value">${neg}</div><div class="kpi-sub">dati peggiori del previsto</div></div>
-      <div class="kpi" style="--c:var(--warn)"><div class="kpi-label">Sorprese ad alto impatto</div><div class="kpi-value">${hot}</div><div class="kpi-sub">da leggere per prime</div></div>
-      <div class="kpi" style="--c:var(--b-molto_short)"><div class="kpi-label">Rischi alti attivi</div><div class="kpi-value">${riskHigh}</div><div class="kpi-sub">${riskUp} in salita · <a href="#risks" style="color:inherit;white-space:nowrap">vedi →</a></div></div>
+      <div class="kpi" style="--c:var(--accent)"><div class="kpi-label">${tx('Paesi seguiti')}</div><div class="kpi-value">${cs.length}</div><div class="kpi-sub">${counts.filter(x => x.n).length} ${tx('bias diversi in uso')}</div></div>
+      <div class="kpi" style="--c:var(--pos)"><div class="kpi-label">${tx('Sorprese positive')}</div><div class="kpi-value">${pos}</div><div class="kpi-sub">${tx('su {n} indicatori con previsto', { n: sur.length })}</div></div>
+      <div class="kpi" style="--c:var(--neg)"><div class="kpi-label">${tx('Sorprese negative')}</div><div class="kpi-value">${neg}</div><div class="kpi-sub">${tx('dati peggiori del previsto')}</div></div>
+      <div class="kpi" style="--c:var(--warn)"><div class="kpi-label">${tx('Sorprese ad alto impatto')}</div><div class="kpi-value">${hot}</div><div class="kpi-sub">${tx('da leggere per prime')}</div></div>
+      <div class="kpi" style="--c:var(--b-molto_short)"><div class="kpi-label">${tx('Rischi alti attivi')}</div><div class="kpi-value">${riskHigh}</div><div class="kpi-sub">${riskUp} ${tx('in salita')} · <a href="#risks" style="color:inherit;white-space:nowrap">${tx('vedi →')}</a></div></div>
     </div>
 
     <section class="section">
-      <div class="section-head"><div><div class="eyebrow">Distribuzione</div><h2 class="section-title">Bias sulle valute</h2></div></div>
+      <div class="section-head"><div><div class="eyebrow">${tx('Distribuzione')}</div><h2 class="section-title">${tx('Bias sulle valute')}</h2></div></div>
       <div class="panel">
         ${cs.length ? `<div class="biasbar">${counts.filter(x => x.n).map(x => `<span style="--n:${x.n};--c:${bcol(x.k)}" title="${BIAS[x.k].label}: ${x.n}"></span>`).join('')}</div>
-        <div class="biaslegend">${counts.map(x => `<div style="--c:${bcol(x.k)}"><i></i>${BIAS[x.k].label} <b>${x.n}</b></div>`).join('')}</div>` : '<div class="empty">Nessun paese ancora.</div>'}
+        <div class="biaslegend">${counts.map(x => `<div style="--c:${bcol(x.k)}"><i></i>${BIAS[x.k].label} <b>${x.n}</b></div>`).join('')}</div>` : `<div class="empty">${tx('Nessun paese ancora.')}</div>`}
       </div>
     </section>
 
     <section class="section">
       <div class="section-head">
-        <div><div class="eyebrow">Mappa</div><h2 class="section-title">Mappa delle Valute</h2></div>
-        <div class="map-hint"><span>Trascina le bolle · clic per aprire la scheda</span></div>
+        <div><div class="eyebrow">${tx('Mappa')}</div><h2 class="section-title">${tx('Mappa delle Valute')}</h2></div>
+        <div class="map-hint"><span>${tx('Trascina le bolle · clic per aprire la scheda')}</span></div>
       </div>
       <div class="map-wrap">
         <div class="map" id="map">
           <div class="map-bg">
-            <div class="map-quad q-tl">Deboli · Hawkish</div><div class="map-quad q-tr">Forti · Hawkish</div>
-            <div class="map-quad q-bl">Deboli · Dovish</div><div class="map-quad q-br">Forti · Dovish</div>
-            <div class="map-grid"></div><div class="map-axis-x"></div><div class="map-axis-y"></div>
-            <span class="axis-lbl al-hawk" title="Politica monetaria restrittiva">↑ Hawkish</span>
-            <span class="axis-lbl al-dove" title="Politica monetaria accomodante">↓ Dovish</span>
-            <span class="axis-lbl al-weak">← Economia debole</span>
-            <span class="axis-lbl al-strong">Economia forte →</span>
+            <div class="map-band band-hawk"><b>${tx('Hawkish')}</b><span>${tx('Economia forte · banca centrale verso rialzo dei tassi')}</span></div>
+            <div class="map-band band-dove"><b>${tx('Dovish')}</b><span>${tx('Economia debole · banca centrale verso taglio dei tassi')}</span></div>
+            <div class="map-grid"></div><div class="map-axis-x"></div>
+            <span class="axis-lbl al-hawk" title="${tx('Politica monetaria restrittiva')}">↑ ${tx('Economia forte')}</span>
+            <span class="axis-lbl al-dove" title="${tx('Politica monetaria accomodante')}">↓ ${tx('Economia debole')}</span>
           </div>
         </div>
-        <div class="map-hint">${BIAS_KEYS.map(k => `<span class="legend-chip" style="--c:${bcol(k)}"><i></i>${BIAS[k].label}</span>`).join('')}<span>· il colore della bolla è il bias scelto per il paese</span></div>
+        <div class="map-hint">${BIAS_KEYS.map(k => `<span class="legend-chip" style="--c:${bcol(k)}"><i></i>${BIAS[k].label}</span>`).join('')}<span>${tx('· il colore della bolla è il bias scelto per il paese')}</span></div>
       </div>
     </section>
 
     <section class="section">
-      <div class="section-head"><div><div class="eyebrow">Banche centrali</div><h2 class="section-title">Tassi di interesse</h2></div>
-        <div class="map-hint"><span>La tacca indica il tasso precedente</span></div></div>
+      <div class="section-head"><div><div class="eyebrow">${tx('Banche centrali')}</div><h2 class="section-title">${tx('Tassi di interesse')}</h2></div>
+        <div class="map-hint"><span>${tx('La tacca indica il tasso precedente')}</span></div></div>
       <div class="panel"><div class="rates" id="rates"></div></div>
     </section>
 
     <section class="section">
-      <div class="section-head"><div><div class="eyebrow">Segnali automatici</div><h2 class="section-title">Sorprese macro</h2></div>
-        <a class="btn" href="#macro">Tutti i dati →</a></div>
+      <div class="section-head"><div><div class="eyebrow">${tx('Segnali automatici')}</div><h2 class="section-title">${tx('Sorprese macro')}</h2></div>
+        <a class="btn" href="#macro">${tx('Tutti i dati →')}</a></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Paese</th><th>Indicatore</th><th class="num">Attuale</th><th class="num">Previsto</th><th class="num">Precedente</th><th>Sorpresa</th><th>Impatto</th></tr></thead>
+        <thead><tr><th>${tx('Paese')}</th><th>${tx('Indicatore')}</th><th class="num">${tx('Attuale')}</th><th class="num">${tx('Previsto')}</th><th class="num">${tx('Precedente')}</th><th>${tx('Sorpresa')}</th><th>${tx('Impatto')}</th></tr></thead>
         <tbody id="sur-body"></tbody></table></div>
     </section>
 
     <section class="section">
-      <div class="section-head"><div><div class="eyebrow">Operatività</div><h2 class="section-title">Idee di trade</h2></div>
-        <a class="btn" href="#trades">Tutte le idee →</a></div>
+      <div class="section-head"><div><div class="eyebrow">${tx('Operatività')}</div><h2 class="section-title">${tx('Idee di trade')}</h2></div>
+        <a class="btn" href="#trades">${tx('Tutte le idee →')}</a></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Strumento</th><th>Direzione</th><th>Stato</th><th class="num">Ingresso</th><th class="num">Stop</th><th class="num">Target</th><th class="num">R:R</th><th>Bias</th></tr></thead>
+        <thead><tr><th>${tx('Strumento')}</th><th>${tx('Direzione')}</th><th>${tx('Stato')}</th><th class="num">${tx('Ingresso')}</th><th class="num">${tx('Stop')}</th><th class="num">${tx('Target')}</th><th class="num">${tx('R:R')}</th><th>${tx('Bias')}</th></tr></thead>
         <tbody id="home-trades"></tbody></table></div>
     </section>
   </div>`;
@@ -194,7 +203,7 @@ function renderRates() {
       <div class="rate-track"><div class="rate-fill" data-w="${(r.v / max) * 100}"></div>${r.p != null ? `<div class="rate-prev" style="left:${(r.p / max) * 100}%" title="Precedente ${fmt(r.p, 'rate')}%"></div>` : ''}</div>
       <div class="rate-val"><b>${fmt(r.v, 'rate')}%</b><small style="color:${d < 0 ? 'var(--neg)' : 'var(--pos)'}">${d ? (d < 0 ? '▼ ' : '▲ ') + Math.abs(d).toFixed(2) : ''}</small></div>
     </div>`;
-  }).join('') : '<div class="empty">Inserisci i tassi dalla pagina Macro per Paese.</div>';
+  }).join('') : `<div class="empty">${tx('Inserisci i tassi dalla pagina Macro per Paese.')}</div>`;
   requestAnimationFrame(() => requestAnimationFrame(() => $$('.rate-fill').forEach(el => el.style.width = el.dataset.w + '%')));
 }
 
@@ -205,7 +214,7 @@ function renderSurTable() {
     <td>${esc(x.x.label)}</td>
     <td class="num">${fmt(x.i.v, x.x.k)}%</td><td class="num">${fmt(x.i.f, x.x.k)}%</td><td class="num">${fmt(x.i.p, x.x.k)}%</td>
     <td>${surpriseChip(x.s, x.x)}</td><td>${impactBars(x.i.impact)}</td></tr>`).join('')
-    : '<tr><td colspan="7"><div class="empty" style="border:0">Inserisci attuale e previsto per vedere le sorprese.</div></td></tr>';
+    : `<tr><td colspan="7"><div class="empty" style="border:0">${tx('Inserisci attuale e previsto per vedere le sorprese.')}</div></td></tr>`;
   $$('#sur-body tr.clickable').forEach(tr => tr.onclick = () => openCountryModal(tr.dataset.id));
 }
 
@@ -225,10 +234,10 @@ function initMap() {
 
     b.addEventListener('mouseenter', () => {
       const r = c.ind?.rate;
-      tip.innerHTML = `<b>${esc(c.name)}</b><div class="row"><span>Bias</span><span style="color:${bcol(c.bias)}">${BIAS[c.bias]?.label || '—'}</span></div>
-        <div class="row"><span>Tasso</span><span>${r?.v != null ? fmt(r.v, 'rate') + '%' : '—'}</span></div>
-        <div class="row"><span>Sorpresa netta</span><span>${sgn(netScore(c))}</span></div>
-        ${ex.length ? `<div class="row" style="display:block;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><span style="display:block;margin-bottom:4px">Rischi attivi</span>${ex.map(r => `<div style="color:var(--text);font-family:var(--font);display:flex;gap:6px;align-items:center"><i style="width:6px;height:6px;border-radius:50%;background:${rColor(r)};flex:none"></i>${esc(r.title)}<b style="margin-left:auto;padding-left:8px;font-size:10px;color:${DIR[dirOf(r, c.code)].color}" title="${DIR[dirOf(r, c.code)].label}">${DIR[dirOf(r, c.code)].icon}</b></div>`).join('')}</div>` : ''}`;
+      tip.innerHTML = `<b>${esc(c.name)}</b><div class="row"><span>${tx('Bias')}</span><span style="color:${bcol(c.bias)}">${BIAS[c.bias]?.label || '—'}</span></div>
+        <div class="row"><span>${tx('Tasso')}</span><span>${r?.v != null ? fmt(r.v, 'rate') + '%' : '—'}</span></div>
+        <div class="row"><span>${tx('Sorpresa netta')}</span><span>${sgn(netScore(c))}</span></div>
+        ${ex.length ? `<div class="row" style="display:block;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><span style="display:block;margin-bottom:4px">${tx('Rischi attivi')}</span>${ex.map(r => `<div style="color:var(--text);font-family:var(--font);display:flex;gap:6px;align-items:center"><i style="width:6px;height:6px;border-radius:50%;background:${rColor(r)};flex:none"></i>${esc(r.title)}<b style="margin-left:auto;padding-left:8px;font-size:10px;color:${DIR[dirOf(r, c.code)].color}" title="${DIR[dirOf(r, c.code)].label}">${DIR[dirOf(r, c.code)].icon}</b></div>`).join('')}</div>` : ''}`;
       tip.classList.add('show');
     });
     b.addEventListener('mousemove', e => { tip.style.left = Math.min(e.clientX + 16, innerWidth - 220) + 'px'; tip.style.top = (e.clientY + 16) + 'px'; });
@@ -302,7 +311,7 @@ function initMap() {
           it.mx = Math.round(cur[id].x / W * 10000) / 100; it.my = Math.round(cur[id].y / H * 10000) / 100;
           jobs.push(api('PUT', `/api/countries/${id}`, { mx: it.mx, my: it.my }));
         });
-        try { await Promise.all(jobs); } catch (err) { toast('Errore nel salvataggio delle posizioni'); }
+        try { await Promise.all(jobs); } catch (err) { toast(tx('Errore nel salvataggio delle posizioni')); }
       };
       b.addEventListener('pointermove', move); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
     });
@@ -316,21 +325,21 @@ function renderMacro() {
   const cs = S.countries;
   $('#main').innerHTML = `<div class="fade-in ${pref.get('cardcolor', '1') === '1' ? '' : 'nocolor'}">
     <div class="page-head">
-      <div><div class="eyebrow">Analisi per paese</div><h1 class="page-title">Macro per Paese</h1>
-        <p class="page-sub">Inflazione, disoccupazione, tassi e PIL per ogni paese che segui. Clicca una scheda per modificarla, o aggiungi un nuovo paese.</p></div>
+      <div><div class="eyebrow">${tx('Analisi per paese')}</div><h1 class="page-title">${tx('Macro per Paese')}</h1>
+        <p class="page-sub">${tx('Inflazione, disoccupazione, tassi e PIL per ogni paese che segui. Clicca una scheda per modificarla, o aggiungi un nuovo paese.')}</p></div>
       <div class="actions">
-        <div class="seg"><button data-v="cards" class="${view === 'cards' ? 'on' : ''}">Schede</button><button data-v="matrix" class="${view === 'matrix' ? 'on' : ''}">Matrice</button></div>
-        <button class="btn primary" id="add-country"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nuovo paese</button>
+        <div class="seg"><button data-v="cards" class="${view === 'cards' ? 'on' : ''}">${tx('Schede')}</button><button data-v="matrix" class="${view === 'matrix' ? 'on' : ''}">${tx('Matrice')}</button></div>
+        <button class="btn primary" id="add-country"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${tx('Nuovo paese')}</button>
       </div>
     </div>
-    ${cs.length ? (view === 'cards' ? `<div class="cards">${cs.map(countryCard).join('')}</div>` : matrixTable()) : '<div class="empty">Nessun paese. Aggiungi il primo con “Nuovo paese”.</div>'}
+    ${cs.length ? (view === 'cards' ? `<div class="cards">${cs.map(countryCard).join('')}</div>` : matrixTable()) : `<div class="empty">${tx('Nessun paese. Aggiungi il primo con “Nuovo paese”.')}</div>`}
   </div>`;
   $$('.seg button').forEach(b => b.onclick = () => { pref.set('macro_view', b.dataset.v); renderMacro(); });
   $('#add-country').onclick = () => openCountryModal(null);
   $$('.ccard, .matrix tbody tr').forEach(el => el.onclick = () => openCountryModal(el.dataset.id));
   $$('.bias-sel').forEach(sel => {
     sel.onclick = e => e.stopPropagation();
-    sel.onchange = async () => { const c = S.countries.find(x => x.id === sel.dataset.id); c.bias = sel.value; await api('PUT', `/api/countries/${c.id}`, { bias: c.bias }); rerender(); toast('Bias aggiornato'); };
+    sel.onchange = async () => { const c = S.countries.find(x => x.id === sel.dataset.id); c.bias = sel.value; await api('PUT', `/api/countries/${c.id}`, { bias: c.bias }); rerender(); toast(tx('Bias aggiornato')); };
   });
 }
 
@@ -344,7 +353,7 @@ function countryCard(c, idx) {
       <div><div class="ccard-name">${esc(c.name)}</div><div class="ccard-code">${esc(c.code)}</div></div>
       <div class="ccard-bias">${biasSelect(c)}</div></div>
     <div class="itable">
-      <div class="irow ihead"><span>Indicatore</span><span>Attuale</span><span>Previsto</span><span>Precedente</span><span>Sorpresa</span></div>
+      <div class="irow ihead"><span>${tx('Indicatore')}</span><span>${tx('Attuale')}</span><span>${tx('Previsto')}</span><span>${tx('Precedente')}</span><span>${tx('Sorpresa')}</span></div>
       ${INDS.map(x => {
         const i = c.ind?.[x.k] || {}; const s = surprise(c, x.k);
         const u = v => v == null ? '' : '%';
@@ -356,19 +365,19 @@ function countryCard(c, idx) {
       }).join('')}
     </div>
     ${c.note ? `<div class="ccard-note">${esc(c.note)}</div>` : ''}
-    <div class="ccard-foot"><span>Sorpresa netta <span class="net ${net > 0 ? 'pos' : net < 0 ? 'neg' : ''}">${sgn(net)}</span></span>
-      ${(() => { const ex = riskExposure(c.code); return ex.length ? `<a href="#risks" class="rtag" style="--rc:${rColor(ex[0])}" title="${esc(ex.map(r => DIR[dirOf(r, c.code)].icon + ' ' + r.title).join(' · '))}" onclick="event.stopPropagation()">${ex.length} ${ex.length === 1 ? 'rischio attivo' : 'rischi attivi'}</a>` : ''; })()}
-      <span>Modifica →</span></div>
+    <div class="ccard-foot"><span>${tx('Sorpresa netta')} <span class="net ${net > 0 ? 'pos' : net < 0 ? 'neg' : ''}">${sgn(net)}</span></span>
+      ${(() => { const ex = riskExposure(c.code); return ex.length ? `<a href="#risks" class="rtag" style="--rc:${rColor(ex[0])}" title="${esc(ex.map(r => DIR[dirOf(r, c.code)].icon + ' ' + r.title).join(' · '))}" onclick="event.stopPropagation()">${ex.length} ${ex.length === 1 ? tx('rischio attivo') : tx('rischi attivi')}</a>` : ''; })()}
+      <span>${tx('Modifica →')}</span></div>
   </article>`;
 }
 
 function matrixTable() {
-  return `<div class="table-wrap"><table class="matrix"><thead><tr><th>Paese</th>${INDS.map(x => `<th>${x.label}</th>`).join('')}<th>Bias</th><th>Sorpresa netta</th></tr></thead><tbody>
+  return `<div class="table-wrap"><table class="matrix"><thead><tr><th>${tx('Paese')}</th>${INDS.map(x => `<th>${x.label}</th>`).join('')}<th>${tx('Bias')}</th><th>${tx('Sorpresa netta')}</th></tr></thead><tbody>
   ${S.countries.map(c => {
     const net = netScore(c);
     return `<tr class="clickable" data-id="${esc(c.id)}"><td><div class="cc">${flagOf(c)}${esc(c.name)}<small>${esc(c.code)}</small></div></td>
       ${INDS.map(x => { const i = c.ind?.[x.k] || {}; const s = surprise(c, x.k); const cls = !s ? '' : s.sig > 0 ? 'pos' : s.sig < 0 ? 'neg' : '';
-        return `<td><span class="mcell ${cls}"><b>${fmt(i.v ?? null, x.k)}${i.v != null ? '%' : ''}</b><small>${s ? (s.d === 0 ? 'in linea' : (s.d > 0 ? '▲ ' : '▼ ') + sgn(s.d)) : 'n/d'}</small><em>prev ${fmt(i.f ?? null, x.k)} · prec ${fmt(i.p ?? null, x.k)}</em></span></td>`; }).join('')}
+        return `<td><span class="mcell ${cls}"><b>${fmt(i.v ?? null, x.k)}${i.v != null ? '%' : ''}</b><small>${s ? (s.d === 0 ? tx('in linea') : (s.d > 0 ? '▲ ' : '▼ ') + sgn(s.d)) : tx('n/d')}</small><em>${tx('prev')} ${fmt(i.f ?? null, x.k)} · ${tx('prec')} ${fmt(i.p ?? null, x.k)}</em></span></td>`; }).join('')}
       <td>${biasSelect(c)}</td>
       <td><span class="net ${net > 0 ? 'pos' : net < 0 ? 'neg' : ''}" style="font-size:15px">${sgn(net)}</span></td></tr>`;
   }).join('')}</tbody></table></div>`;
@@ -393,27 +402,27 @@ function findFreeSpot() {
 
 function openCountryModal(id) {
   const c = id ? S.countries.find(x => x.id === id) : { name: '', code: '', flag: '', bias: 'neutro', note: '', ind: {} };
-  openModal(`<h3>${id ? 'Modifica paese' : 'Nuovo paese'}</h3><div class="sub">Inserisci a mano attuale, previsto e precedente. Lascia vuoto ciò che non hai.</div>
+  openModal(`<h3>${id ? tx('Modifica paese') : tx('Nuovo paese')}</h3><div class="sub">${tx('Inserisci a mano attuale, previsto e precedente. Lascia vuoto ciò che non hai.')}</div>
     <div class="form-grid">
-      <div class="field s4"><label>Paese</label><input id="f-name" value="${esc(c.name)}" placeholder="es. Stati Uniti"></div>
-      <div class="field s2"><label>Valuta</label><input id="f-code" value="${esc(c.code)}" placeholder="USD" maxlength="5"></div>
-      <div class="field s2"><label>Bandiera (emoji)</label><input id="f-flag" value="${esc(c.flag)}" placeholder="🇺🇸"></div>
-      <div class="field s4"><label>Bias sulla valuta</label><select id="f-bias">${BIAS_KEYS.map(k => `<option value="${k}" ${c.bias === k ? 'selected' : ''}>${BIAS[k].label}</option>`).join('')}</select></div>
-      <div class="ind-head">Indicatori (in %)</div>
+      <div class="field s4"><label>${tx('Paese')}</label><input id="f-name" value="${esc(c.name)}" placeholder="${tx('es. Stati Uniti')}"></div>
+      <div class="field s2"><label>${tx('Valuta')}</label><input id="f-code" value="${esc(c.code)}" placeholder="USD" maxlength="5"></div>
+      <div class="field s2"><label>${tx('Bandiera (emoji)')}</label><input id="f-flag" value="${esc(c.flag)}" placeholder="🇺🇸"></div>
+      <div class="field s4"><label>${tx('Bias sulla valuta')}</label><select id="f-bias">${BIAS_KEYS.map(k => `<option value="${k}" ${c.bias === k ? 'selected' : ''}>${BIAS[k].label}</option>`).join('')}</select></div>
+      <div class="ind-head">${tx('Indicatori (in %)')}</div>
       ${INDS.map(x => { const i = c.ind?.[x.k] || {}; return `<div class="ind-edit" data-k="${x.k}">
         <div class="nm">${x.label}<small>${x.short}</small></div>
-        <div class="field"><label>Attuale</label><input data-f="v" inputmode="decimal" value="${i.v ?? ''}"></div>
-        <div class="field"><label>Previsto</label><input data-f="f" inputmode="decimal" value="${i.f ?? ''}"></div>
-        <div class="field"><label>Precedente</label><input data-f="p" inputmode="decimal" value="${i.p ?? ''}"></div>
-        <div class="field"><label>Impatto</label><select data-f="impact">${['alto', 'medio', 'basso'].map(l => `<option value="${l}" ${(i.impact || 'medio') === l ? 'selected' : ''}>${l[0].toUpperCase() + l.slice(1)}</option>`).join('')}</select></div></div>`; }).join('')}
-      <div class="field"><label>Note</label><textarea id="f-note" placeholder="La tua lettura macro su questo paese…">${esc(c.note)}</textarea></div>
+        <div class="field"><label>${tx('Attuale')}</label><input data-f="v" inputmode="decimal" value="${i.v ?? ''}"></div>
+        <div class="field"><label>${tx('Previsto')}</label><input data-f="f" inputmode="decimal" value="${i.f ?? ''}"></div>
+        <div class="field"><label>${tx('Precedente')}</label><input data-f="p" inputmode="decimal" value="${i.p ?? ''}"></div>
+        <div class="field"><label>${tx('Impatto')}</label><select data-f="impact">${['alto', 'medio', 'basso'].map(l => `<option value="${l}" ${(i.impact || 'medio') === l ? 'selected' : ''}>${tx(l[0].toUpperCase() + l.slice(1))}</option>`).join('')}</select></div></div>`; }).join('')}
+      <div class="field"><label>${tx('Note')}</label><textarea id="f-note" placeholder="${tx('La tua lettura macro su questo paese…')}">${esc(c.note)}</textarea></div>
     </div>
-    <div class="modal-foot"><div>${id ? '<button class="btn danger" id="m-del">Elimina</button>' : ''}</div>
-      <div class="actions"><button class="btn" id="m-cancel">Annulla</button><button class="btn primary" id="m-save">Salva</button></div></div>`);
+    <div class="modal-foot"><div>${id ? `<button class="btn danger" id="m-del">${tx('Elimina')}</button>` : ''}</div>
+      <div class="actions"><button class="btn" id="m-cancel">${tx('Annulla')}</button><button class="btn primary" id="m-save">${tx('Salva')}</button></div></div>`);
   $('#m-cancel').onclick = closeModal;
   if (id) $('#m-del').onclick = async () => {
-    if (!confirm(`Eliminare ${c.name}? L'operazione non si può annullare.`)) return;
-    await api('DELETE', `/api/countries/${id}`); S.countries = S.countries.filter(x => x.id !== id); closeModal(); rerender(); toast('Paese eliminato');
+    if (!confirm(tx('Eliminare {n}? L\'operazione non si può annullare.', { n: c.name }))) return;
+    await api('DELETE', `/api/countries/${id}`); S.countries = S.countries.filter(x => x.id !== id); closeModal(); rerender(); toast(tx('Paese eliminato'));
   };
   $('#m-save').onclick = async () => {
     const name = $('#f-name').value.trim();
@@ -424,8 +433,8 @@ function openCountryModal(id) {
     try {
       if (id) { Object.assign(c, await api('PUT', `/api/countries/${id}`, body)); }
       else { S.countries.push(await api('POST', '/api/countries', { ...body, ...findFreeSpot() })); }
-      closeModal(); rerender(); toast('Salvato');
-    } catch (e) { toast('Errore nel salvataggio'); }
+      closeModal(); rerender(); toast(tx('Salvato'));
+    } catch (e) { toast(tx('Errore nel salvataggio')); }
   };
 }
 
@@ -433,12 +442,12 @@ function openCountryModal(id) {
 // Modello: probabilità × impatto (3 livelli ciascuno) + trend della probabilità, scenari e trigger.
 // I record vecchi con il solo campo "severity" restano leggibili (fallback).
 const LVL = { basso: 1, medio: 2, alto: 3 };
-const LIK_LABEL = { basso: 'Bassa', medio: 'Media', alto: 'Alta' };
-const IMP_LABEL = { basso: 'Basso', medio: 'Medio', alto: 'Alto' };
+const LIK_LABEL = { basso: tx('Bassa'), medio: tx('Media'), alto: tx('Alta') };
+const IMP_LABEL = { basso: tx('Basso'), medio: tx('Medio'), alto: tx('Alto') };
 const TREND = {
-  su:      { label: 'Probabilità in salita', short: 'In salita', icon: '▲', color: 'var(--neg)' },
-  stabile: { label: 'Probabilità stabile',   short: 'Stabile',   icon: '■', color: 'var(--text-3)' },
-  giu:     { label: 'Probabilità in calo',   short: 'In calo',   icon: '▼', color: 'var(--pos)' },
+  su:      { label: tx('Probabilità in salita'), short: tx('In salita'), icon: '▲', color: 'var(--neg)' },
+  stabile: { label: tx('Probabilità stabile'),   short: tx('Stabile'),   icon: '■', color: 'var(--text-3)' },
+  giu:     { label: tx('Probabilità in calo'),   short: tx('In calo'),   icon: '▼', color: 'var(--pos)' },
 };
 const rLik = r => LVL[r.likelihood] ? r.likelihood : (LVL[r.severity] ? r.severity : 'medio');
 const rImp = r => LVL[r.impact] ? r.impact : (LVL[r.severity] ? r.severity : 'medio');
@@ -450,9 +459,9 @@ const rColor = r => SEV[rLevel(r)].color;
 const ccyList = r => String(r.ccy || '').split(',').map(s => s.trim()).filter(Boolean);
 // direzione del rischio per valuta: favorita (rifugio), penalizzata, neutra
 const DIR = {
-  pos: { label: 'Favorita',    icon: '▲', color: 'var(--pos)' },
-  neg: { label: 'Penalizzata', icon: '▼', color: 'var(--neg)' },
-  neu: { label: 'Neutra',      icon: '●', color: 'var(--text-3)' },
+  pos: { label: tx('Favorita'),    icon: '▲', color: 'var(--pos)' },
+  neg: { label: tx('Penalizzata'), icon: '▼', color: 'var(--neg)' },
+  neu: { label: tx('Neutra'),      icon: '●', color: 'var(--text-3)' },
 };
 const dirOf = (r, code) => { const d = (r.ccy_dir || {})[String(code).toUpperCase()]; return DIR[d] ? d : 'neu'; };
 function riskExposure(code) {
@@ -476,26 +485,26 @@ function renderRisks() {
 
   $('#main').innerHTML = `<div class="fade-in">
     <div class="page-head">
-      <div><div class="eyebrow">Scenari di rischio</div><h1 class="page-title">Rischi Geopolitici</h1>
-        <p class="page-sub">Un rischio per scenario: probabilità, impatto sul mercato e trend. Aggiorna probabilità e trend leggendo le tue fonti (es. BlackRock Geopolitical Risk Dashboard).</p></div>
-      <div class="actions"><button class="btn primary" id="add-risk"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nuovo rischio</button></div>
+      <div><div class="eyebrow">${tx('Scenari di rischio')}</div><h1 class="page-title">${tx('Rischi Geopolitici')}</h1>
+        <p class="page-sub">${tx('Un rischio per scenario: probabilità, impatto sul mercato e trend. Aggiorna probabilità e trend leggendo le tue fonti (es. BlackRock Geopolitical Risk Dashboard).')}</p></div>
+      <div class="actions"><button class="btn primary" id="add-risk"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${tx('Nuovo rischio')}</button></div>
     </div>
 
     <section class="section" style="margin-top:0">
-      <div class="section-head"><div><div class="eyebrow">Matrice</div><h2 class="section-title">Probabilità × impatto</h2></div>
-        <div class="map-hint"><span>Trascina uno scenario in un'altra cella per aggiornarlo</span><span>· ${rising} in salita</span></div></div>
+      <div class="section-head"><div><div class="eyebrow">${tx('Matrice')}</div><h2 class="section-title">${tx('Probabilità × impatto')}</h2></div>
+        <div class="map-hint"><span>${tx("Trascina uno scenario in un'altra cella per aggiornarlo")}</span><span>· ${rising} in salita</span></div></div>
       <div class="rmatrix">
         <div class="rm-grid">
           ${rows.map(imp => `<div class="rm-lbl">${IMP_LABEL[imp]}</div>${cols.map(lik => cellOf(lik, imp)).join('')}`).join('')}
           <div></div>${cols.map(l => `<div class="rm-lbl rm-x">${LIK_LABEL[l]}</div>`).join('')}
         </div>
-        <div class="rm-cap"><span>↑ Impatto sul mercato</span><span>Probabilità →</span></div>
+        <div class="rm-cap"><span>${tx('↑ Impatto sul mercato')}</span><span>${tx('Probabilità →')}</span></div>
       </div>
     </section>
 
     <section class="section">
-      <div class="section-head"><div><div class="eyebrow">Dettaglio</div><h2 class="section-title">Scenari e trigger</h2></div></div>
-      ${list.length ? `<div class="rlist">${list.map(riskCard).join('')}</div>` : '<div class="empty">Nessun rischio. Aggiungine uno con “Nuovo rischio”.</div>'}
+      <div class="section-head"><div><div class="eyebrow">${tx('Dettaglio')}</div><h2 class="section-title">${tx('Scenari e trigger')}</h2></div></div>
+      ${list.length ? `<div class="rlist">${list.map(riskCard).join('')}</div>` : `<div class="empty">${tx('Nessun rischio. Aggiungine uno con “Nuovo rischio”.')}</div>`}
     </section>
   </div>`;
 
@@ -514,7 +523,7 @@ function renderRisks() {
       const r = S.risks.find(x => x.id === e.dataTransfer.getData('text/plain')); if (!r) return;
       if (rLik(r) === cell.dataset.lik && rImp(r) === cell.dataset.imp) return;
       r.likelihood = cell.dataset.lik; r.impact = cell.dataset.imp;
-      await api('PUT', `/api/risks/${r.id}`, { likelihood: r.likelihood, impact: r.impact }); rerender(); toast('Scenario aggiornato');
+      await api('PUT', `/api/risks/${r.id}`, { likelihood: r.likelihood, impact: r.impact }); rerender(); toast(tx('Scenario aggiornato'));
     };
   });
 }
@@ -525,18 +534,18 @@ function riskCard(r) {
   return `<article class="rc ${rActive(r) ? '' : 'off'}" data-id="${esc(r.id)}" style="--c:${rColor(r)}">
     <div class="rc-head">
       <div><h4>${esc(r.title)}</h4><div class="region">${esc(r.region)}</div></div>
-      <span class="chip" style="--cc:${rColor(r)}">Rischio ${SEV[lvl].label.toLowerCase()}</span>
+      <span class="chip" style="--cc:${rColor(r)}">${tx('Rischio ' + lvl)}</span>
     </div>
     <div class="rc-meters">
-      <div><small>Probabilità</small>${meter(rLik(r), rColor(r))}<b>${LIK_LABEL[rLik(r)]}</b></div>
-      <div><small>Impatto</small>${meter(rImp(r), rColor(r))}<b>${IMP_LABEL[rImp(r)]}</b></div>
-      <div><small>Trend</small><b style="color:${tr.color}">${tr.icon} ${tr.short}</b></div>
+      <div><small>${tx('Probabilità')}</small>${meter(rLik(r), rColor(r))}<b>${LIK_LABEL[rLik(r)]}</b></div>
+      <div><small>${tx('Impatto')}</small>${meter(rImp(r), rColor(r))}<b>${IMP_LABEL[rImp(r)]}</b></div>
+      <div><small>${tx('Trend')}</small><b style="color:${tr.color}">${tr.icon} ${tr.short}</b></div>
     </div>
     ${r.note ? `<p class="rc-note">${esc(r.note)}</p>` : ''}
     ${(r.scen_up || r.scen_down) ? `<div class="rc-scen">
-      ${r.scen_up ? `<div><span class="lbl" style="--lc:var(--neg)">Se escalation</span>${esc(r.scen_up)}</div>` : ''}
-      ${r.scen_down ? `<div><span class="lbl" style="--lc:var(--pos)">Se rientra</span>${esc(r.scen_down)}</div>` : ''}</div>` : ''}
-    ${trig.length ? `<div class="rc-trig"><span class="lbl" style="--lc:var(--warn)">Trigger da osservare</span><ul>${trig.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+      ${r.scen_up ? `<div><span class="lbl" style="--lc:var(--neg)">${tx('Se escalation')}</span>${esc(r.scen_up)}</div>` : ''}
+      ${r.scen_down ? `<div><span class="lbl" style="--lc:var(--pos)">${tx('Se rientra')}</span>${esc(r.scen_down)}</div>` : ''}</div>` : ''}
+    ${trig.length ? `<div class="rc-trig"><span class="lbl" style="--lc:var(--warn)">${tx('Trigger da osservare')}</span><ul>${trig.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
     <div class="rc-foot"><div class="tags">${ccyList(r).map(s => { const d = DIR[dirOf(r, s)]; return `<span class="tag dir" style="--dc:${d.color}" title="${esc(s)}: ${d.label.toLowerCase()}"><b>${d.icon}</b>${esc(s)}</span>`; }).join('')}</div>
       <span class="status" style="--sc:${st.color}"><i></i>${st.label}</span></div>
   </article>`;
@@ -546,23 +555,23 @@ function openRiskModal(id) {
   const r = id ? S.risks.find(x => x.id === id) : { title: '', region: '', status: 'monitoraggio', ccy: '', note: '', trend: 'stabile', scen_up: '', scen_down: '', triggers: '' };
   const lik = id ? rLik(r) : 'medio', imp = id ? rImp(r) : 'medio';
   const sel = (idn, opts, cur) => `<select id="${idn}">${Object.entries(opts).map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-  openModal(`<h3>${id ? 'Modifica rischio' : 'Nuovo rischio'}</h3><div class="sub">Uno scenario geopolitico: quanto è probabile, quanto pesa sul mercato e cosa osservare.</div>
+  openModal(`<h3>${id ? tx('Modifica rischio') : tx('Nuovo rischio')}</h3><div class="sub">${tx('Uno scenario geopolitico: quanto è probabile, quanto pesa sul mercato e cosa osservare.')}</div>
     <div class="form-grid">
-      <div class="field"><label>Titolo dello scenario</label><input id="r-title" value="${esc(r.title)}" placeholder="es. Tensioni commerciali USA–Cina"></div>
-      <div class="field s3"><label>Area / regione</label><input id="r-region" value="${esc(r.region)}"></div>
-      <div class="field s3"><label>Valute coinvolte (separate da virgola)</label><input id="r-ccy" value="${esc(r.ccy)}" placeholder="USD, JPY"></div>
-      <div class="field" id="r-dirwrap"><label>Direzione per valuta</label><div class="dirs" id="r-dirs"></div></div>
-      <div class="field s2"><label>Probabilità</label>${sel('r-lik', LIK_LABEL, lik)}</div>
-      <div class="field s2"><label>Impatto sul mercato</label>${sel('r-imp', IMP_LABEL, imp)}</div>
-      <div class="field s2"><label>Trend probabilità</label>${sel('r-trend', Object.fromEntries(Object.entries(TREND).map(([k, v]) => [k, v.label])), rTrend(r))}</div>
-      <div class="field"><label>Stato</label>${sel('r-status', Object.fromEntries(Object.entries(STATUS).map(([k, v]) => [k, v.label])), r.status || 'monitoraggio')}</div>
-      <div class="field s3"><label>Se escalation</label><textarea id="r-up" placeholder="Cosa succede ai mercati e alle valute…">${esc(r.scen_up)}</textarea></div>
-      <div class="field s3"><label>Se rientra</label><textarea id="r-down" placeholder="Cosa succede se la tensione cala…">${esc(r.scen_down)}</textarea></div>
-      <div class="field"><label>Trigger da osservare (uno per riga)</label><textarea id="r-trig" placeholder="Annunci, scadenze, livelli di prezzo…">${esc(r.triggers)}</textarea></div>
-      <div class="field"><label>Note</label><textarea id="r-note">${esc(r.note)}</textarea></div>
+      <div class="field"><label>${tx('Titolo dello scenario')}</label><input id="r-title" value="${esc(r.title)}" placeholder="${tx('es. Tensioni commerciali USA–Cina')}"></div>
+      <div class="field s3"><label>${tx('Area / regione')}</label><input id="r-region" value="${esc(r.region)}"></div>
+      <div class="field s3"><label>${tx('Valute coinvolte (separate da virgola)')}</label><input id="r-ccy" value="${esc(r.ccy)}" placeholder="USD, JPY"></div>
+      <div class="field" id="r-dirwrap"><label>${tx('Direzione per valuta')}</label><div class="dirs" id="r-dirs"></div></div>
+      <div class="field s2"><label>${tx('Probabilità')}</label>${sel('r-lik', LIK_LABEL, lik)}</div>
+      <div class="field s2"><label>${tx('Impatto sul mercato')}</label>${sel('r-imp', IMP_LABEL, imp)}</div>
+      <div class="field s2"><label>${tx('Trend probabilità')}</label>${sel('r-trend', Object.fromEntries(Object.entries(TREND).map(([k, v]) => [k, v.label])), rTrend(r))}</div>
+      <div class="field"><label>${tx('Stato')}</label>${sel('r-status', Object.fromEntries(Object.entries(STATUS).map(([k, v]) => [k, v.label])), r.status || 'monitoraggio')}</div>
+      <div class="field s3"><label>${tx('Se escalation')}</label><textarea id="r-up" placeholder="${tx('Cosa succede ai mercati e alle valute…')}">${esc(r.scen_up)}</textarea></div>
+      <div class="field s3"><label>${tx('Se rientra')}</label><textarea id="r-down" placeholder="${tx('Cosa succede se la tensione cala…')}">${esc(r.scen_down)}</textarea></div>
+      <div class="field"><label>${tx('Trigger da osservare (uno per riga)')}</label><textarea id="r-trig" placeholder="${tx('Annunci, scadenze, livelli di prezzo…')}">${esc(r.triggers)}</textarea></div>
+      <div class="field"><label>${tx('Note')}</label><textarea id="r-note">${esc(r.note)}</textarea></div>
     </div>
-    <div class="modal-foot"><div>${id ? '<button class="btn danger" id="m-del">Elimina</button>' : ''}</div>
-      <div class="actions"><button class="btn" id="m-cancel">Annulla</button><button class="btn primary" id="m-save">Salva</button></div></div>`);
+    <div class="modal-foot"><div>${id ? `<button class="btn danger" id="m-del">${tx('Elimina')}</button>` : ''}</div>
+      <div class="actions"><button class="btn" id="m-cancel">${tx('Annulla')}</button><button class="btn primary" id="m-save">${tx('Salva')}</button></div></div>`);
   // direzione per valuta: una riga per ogni valuta scritta nel campo, scelta tra favorita / neutra / penalizzata
   const dirs = { ...(r.ccy_dir || {}) };
   const drawDirs = () => {
@@ -575,7 +584,7 @@ function openRiskModal(id) {
   $('#r-ccy').oninput = drawDirs; drawDirs();
   $('#m-cancel').onclick = closeModal;
   if (id) $('#m-del').onclick = async () => {
-    if (!confirm('Eliminare questo rischio? L\'operazione non si può annullare.')) return;
+    if (!confirm(tx('Eliminare questo rischio? L\'operazione non si può annullare.'))) return;
     await api('DELETE', `/api/risks/${id}`); S.risks = S.risks.filter(x => x.id !== id); closeModal(); rerender();
   };
   $('#m-save').onclick = async () => {
@@ -588,26 +597,26 @@ function openRiskModal(id) {
     };
     try {
       if (id) Object.assign(r, await api('PUT', `/api/risks/${id}`, body)); else S.risks.push(await api('POST', '/api/risks', body));
-      closeModal(); rerender(); toast('Salvato');
-    } catch (e) { toast('Errore nel salvataggio'); }
+      closeModal(); rerender(); toast(tx('Salvato'));
+    } catch (e) { toast(tx('Errore nel salvataggio')); }
   };
 }
 
 /* ───────── pagina IDEE DI TRADE ───────── */
 const TSTATUS = {
-  watchlist: { label: 'Watchlist', color: 'var(--warn)' },
-  attiva:    { label: 'Attiva',    color: 'var(--b-long)' },
-  chiusa:    { label: 'Chiusa',    color: 'var(--text-3)' },
+  watchlist: { label: tx('Watchlist'), color: 'var(--warn)' },
+  attiva:    { label: tx('Attiva'),    color: 'var(--b-long)' },
+  chiusa:    { label: tx('Chiusa'),    color: 'var(--text-3)' },
 };
-const TCONV = { 1: 'Bassa', 2: 'Media', 3: 'Alta' };
-const THORIZ = { breve: 'Breve (giorni)', medio: 'Medio (settimane)', lungo: 'Lungo (mesi)' };
+const TCONV = { 1: tx('Bassa'), 2: tx('Media'), 3: tx('Alta') };
+const THORIZ = { breve: tx('Breve (giorni)'), medio: tx('Medio (settimane)'), lungo: tx('Lungo (mesi)') };
 const BSCORE = { molto_short: -2, short: -1, neutro: 0, long: 1, molto_long: 2 };
 const tDir = t => t.dir === 'short' ? 'short' : 'long';
 const tColor = t => tDir(t) === 'long' ? 'var(--pos)' : 'var(--neg)';
 const tStatus = t => TSTATUS[t.status] ? t.status : 'watchlist';
 const fpx = v => v == null ? '—' : String(+Number(v).toFixed(5));
 const fR = v => v == null ? '—' : (v > 0 ? '+' : '') + String(Math.round(v * 100) / 100) + 'R';
-const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) : '';
+const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' }) : '';
 
 // R:R dai livelli inseriti + controllo di coerenza (long: stop < ingresso < target; short: il contrario)
 function tCalc(t) {
@@ -630,12 +639,12 @@ function tAlign(t) {
 }
 function alignChip(t) {
   const a = tAlign(t);
-  if (!a) return '<span class="chip flat" title="Valute non trovate tra i paesi seguiti">bias n/d</span>';
-  const label = a.state === 'pos' ? 'In linea coi bias' : a.state === 'neg' ? 'Contro i bias' : 'Bias neutri';
+  if (!a) return `<span class="chip flat" title="${tx('Valute non trovate tra i paesi seguiti')}">${tx('bias n/d')}</span>`;
+  const label = a.state === 'pos' ? tx('In linea coi bias') : a.state === 'neg' ? tx('Contro i bias') : tx('Bias neutri');
   return `<span class="chip ${a.state}" title="${esc(a.b.code)}: ${BIAS[a.b.bias].label} · ${esc(a.q.code)}: ${BIAS[a.q.bias].label}">${label}</span>`;
 }
 const dirChip = t => `<span class="chip" style="--cc:${tColor(t)}">${tDir(t) === 'long' ? '▲ Long' : '▼ Short'}</span>`;
-const convMeter = n => `<span class="meter" style="--mc:var(--accent)" title="Convinzione ${TCONV[n] || '—'}">${[1, 2, 3].map(i => `<i class="${i <= (n || 0) ? 'on' : ''}"></i>`).join('')}</span>`;
+const convMeter = n => `<span class="meter" style="--mc:var(--accent)" title="${tx('Convinzione')} ${TCONV[n] || '—'}">${[1, 2, 3].map(i => `<i class="${i <= (n || 0) ? 'on' : ''}"></i>`).join('')}</span>`;
 const rrText = c => c.rr == null ? '—' : `1 : ${c.rr}`;
 
 function renderTrades() {
@@ -650,24 +659,24 @@ function renderTrades() {
 
   $('#main').innerHTML = `<div class="fade-in">
     <div class="page-head">
-      <div><div class="eyebrow">Operatività</div><h1 class="page-title">Idee di Trade</h1>
-        <p class="page-sub">Le tue idee con livelli, tesi, driver macro e invalidazione. Il segnale automatico dice se la direzione è in linea con i bias scelti sulle valute.</p></div>
+      <div><div class="eyebrow">${tx('Operatività')}</div><h1 class="page-title">${tx('Idee di Trade')}</h1>
+        <p class="page-sub">${tx('Le tue idee con livelli, tesi, driver macro e invalidazione. Il segnale automatico dice se la direzione è in linea con i bias scelti sulle valute.')}</p></div>
       <div class="actions">
-        <div class="seg"><button data-v="board" class="${view === 'board' ? 'on' : ''}">Board</button><button data-v="table" class="${view === 'table' ? 'on' : ''}">Tabella</button></div>
-        <button class="btn primary" id="add-trade"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nuova idea</button>
+        <div class="seg"><button data-v="board" class="${view === 'board' ? 'on' : ''}">${tx('Board')}</button><button data-v="table" class="${view === 'table' ? 'on' : ''}">${tx('Tabella')}</button></div>
+        <button class="btn primary" id="add-trade"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${tx('Nuova idea')}</button>
       </div>
     </div>
     <div class="kpis" style="margin-top:0">
-      <div class="kpi" style="--c:var(--b-long)"><div class="kpi-label">Attive</div><div class="kpi-value">${act.length}</div><div class="kpi-sub">${wl.length} in watchlist</div></div>
-      <div class="kpi" style="--c:var(--accent)"><div class="kpi-label">R:R medio</div><div class="kpi-value">${avg == null ? '—' : '1 : ' + avg}</div><div class="kpi-sub">su idee attive e watchlist</div></div>
-      <div class="kpi" style="--c:var(--pos)"><div class="kpi-label">Risultato chiuse</div><div class="kpi-value">${res.length ? fR(tot) : '—'}</div><div class="kpi-sub">${cl.length} chiuse${wr == null ? '' : ' · win rate ' + wr + '%'}</div></div>
+      <div class="kpi" style="--c:var(--b-long)"><div class="kpi-label">${tx('Attive')}</div><div class="kpi-value">${act.length}</div><div class="kpi-sub">${wl.length} ${tx('in watchlist')}</div></div>
+      <div class="kpi" style="--c:var(--accent)"><div class="kpi-label">${tx('R:R medio')}</div><div class="kpi-value">${avg == null ? '—' : '1 : ' + avg}</div><div class="kpi-sub">${tx('su idee attive e watchlist')}</div></div>
+      <div class="kpi" style="--c:var(--pos)"><div class="kpi-label">${tx('Risultato chiuse')}</div><div class="kpi-value">${res.length ? fR(tot) : '—'}</div><div class="kpi-sub">${cl.length} ${tx('chiuse')}${wr == null ? '' : ' · ' + tx('win rate') + ' ' + wr + '%'}</div></div>
     </div>
     <section class="section">
       ${all.length ? (view === 'board' ? `<div class="tboard">${Object.keys(TSTATUS).map(st => {
         const items = all.filter(t => tStatus(t) === st);
         return `<div class="tcol" data-st="${st}" style="--c:${TSTATUS[st].color}"><div class="col-head"><i></i>${TSTATUS[st].label}<span>${items.length}</span></div>
-          ${items.map(tradeCard).join('') || '<div class="empty" style="padding:22px;font-size:12px">Trascina qui un’idea</div>'}</div>`;
-      }).join('')}</div>` : tradeTable()) : '<div class="empty">Nessuna idea di trade. Aggiungi la prima con “Nuova idea”.</div>'}
+          ${items.map(tradeCard).join('') || `<div class="empty" style="padding:22px;font-size:12px">${tx('Trascina qui un’idea')}</div>`}</div>`;
+      }).join('')}</div>` : tradeTable()) : `<div class="empty">${tx('Nessuna idea di trade. Aggiungi la prima con “Nuova idea”.')}</div>`}
     </section></div>`;
 
   $$('.seg button').forEach(b => b.onclick = () => { pref.set('trade_view', b.dataset.v); renderTrades(); });
@@ -687,7 +696,7 @@ function renderTrades() {
       const today = new Date().toISOString().slice(0, 10);
       if (t.status === 'attiva' && !t.date_open) { t.date_open = today; patch.date_open = today; }
       if (t.status === 'chiusa' && !t.date_close) { t.date_close = today; patch.date_close = today; }
-      await api('PUT', `/api/trades/${t.id}`, patch); rerender(); toast('Stato aggiornato');
+      await api('PUT', `/api/trades/${t.id}`, patch); rerender(); toast(tx('Stato aggiornato'));
     };
   });
 }
@@ -697,24 +706,24 @@ function tradeCard(t) {
   const exp = p ? [...riskExposure(p[0]), ...riskExposure(p[1])] : [];
   const uniq = [...new Map(exp.map(r => [r.id, r])).values()];
   return `<article class="tcard" draggable="true" data-id="${esc(t.id)}" style="--c:${tColor(t)}">
-    <div class="tc-head"><h4>${esc(t.instrument || 'Senza nome')}</h4>${dirChip(t)}</div>
+    <div class="tc-head"><h4>${esc(t.instrument || tx('Senza nome'))}</h4>${dirChip(t)}</div>
     <div class="tc-levels">
-      <div><small>Ingresso</small><b>${fpx(num(t.entry))}</b></div>
-      <div><small>Stop</small><b style="color:var(--neg)">${fpx(num(t.stop))}</b></div>
-      <div><small>Target</small><b style="color:var(--pos)">${fpx(num(t.target))}</b></div>
-      <div><small>R:R</small><b>${rrText(c)}${c.ok ? '' : ' <span title="Livelli incoerenti con la direzione" style="color:var(--warn)">⚠</span>'}</b></div>
+      <div><small>${tx('Ingresso')}</small><b>${fpx(num(t.entry))}</b></div>
+      <div><small>${tx('Stop')}</small><b style="color:var(--neg)">${fpx(num(t.stop))}</b></div>
+      <div><small>${tx('Target')}</small><b style="color:var(--pos)">${fpx(num(t.target))}</b></div>
+      <div><small>${tx('R:R')}</small><b>${rrText(c)}${c.ok ? '' : ` <span title="${tx('Livelli incoerenti con la direzione')}" style="color:var(--warn)">⚠</span>`}</b></div>
     </div>
-    ${st === 'chiusa' && t.result != null ? `<div class="tc-result" style="color:${num(t.result) > 0 ? 'var(--pos)' : num(t.result) < 0 ? 'var(--neg)' : 'var(--text-2)'}">Risultato ${fR(num(t.result))}</div>` : ''}
+    ${st === 'chiusa' && t.result != null ? `<div class="tc-result" style="color:${num(t.result) > 0 ? 'var(--pos)' : num(t.result) < 0 ? 'var(--neg)' : 'var(--text-2)'}">${tx('Risultato')} ${fR(num(t.result))}</div>` : ''}
     <div class="tc-meta">${convMeter(t.conv)}${t.horizon ? `<span class="tag">${esc((THORIZ[t.horizon] || t.horizon).split(' ')[0])}</span>` : ''}${alignChip(t)}</div>
     ${t.thesis ? `<p class="tc-thesis">${esc(t.thesis)}</p>` : ''}
-    <div class="tc-foot"><span>${t.date_open ? 'Aperta ' + fDate(t.date_open) : ''}${t.date_close ? ' · chiusa ' + fDate(t.date_close) : ''}</span>
-      ${uniq.length ? `<a href="#risks" class="rtag" style="--rc:${rColor(uniq[0])}" title="${esc(uniq.map(r => r.title).join(' · '))}" onclick="event.stopPropagation()">${uniq.length} ${uniq.length === 1 ? 'rischio' : 'rischi'}</a>` : ''}</div>
+    <div class="tc-foot"><span>${t.date_open ? tx('Aperta') + ' ' + fDate(t.date_open) : ''}${t.date_close ? ' · ' + tx('chiusa') + ' ' + fDate(t.date_close) : ''}</span>
+      ${uniq.length ? `<a href="#risks" class="rtag" style="--rc:${rColor(uniq[0])}" title="${esc(uniq.map(r => r.title).join(' · '))}" onclick="event.stopPropagation()">${uniq.length} ${uniq.length === 1 ? tx('rischio') : tx('rischi')}</a>` : ''}</div>
   </article>`;
 }
 
 function tradeTable() {
   const rows = [...S.trades].sort((a, b) => Object.keys(TSTATUS).indexOf(tStatus(a)) - Object.keys(TSTATUS).indexOf(tStatus(b)));
-  return `<div class="table-wrap"><table><thead><tr><th>Strumento</th><th>Direzione</th><th>Stato</th><th class="num">Ingresso</th><th class="num">Stop</th><th class="num">Target</th><th class="num">R:R</th><th>Convinzione</th><th>Bias</th><th class="num">Risultato</th></tr></thead><tbody>
+  return `<div class="table-wrap"><table><thead><tr><th>${tx('Strumento')}</th><th>${tx('Direzione')}</th><th>${tx('Stato')}</th><th class="num">${tx('Ingresso')}</th><th class="num">${tx('Stop')}</th><th class="num">${tx('Target')}</th><th class="num">${tx('R:R')}</th><th>${tx('Convinzione')}</th><th>${tx('Bias')}</th><th class="num">${tx('Risultato')}</th></tr></thead><tbody>
   ${rows.map(t => { const c = tCalc(t); return `<tr class="trow clickable" data-id="${esc(t.id)}">
     <td>${esc(t.instrument)}</td><td>${dirChip(t)}</td><td><span class="status" style="--sc:${TSTATUS[tStatus(t)].color}"><i></i>${TSTATUS[tStatus(t)].label}</span></td>
     <td class="num">${fpx(num(t.entry))}</td><td class="num">${fpx(num(t.stop))}</td><td class="num">${fpx(num(t.target))}</td><td class="num">${rrText(c)}</td>
@@ -728,7 +737,7 @@ function renderHomeTrades() {
   el.innerHTML = rows.length ? rows.map(t => { const c = tCalc(t); return `<tr class="clickable" data-go="trades">
     <td>${esc(t.instrument)}</td><td>${dirChip(t)}</td><td><span class="status" style="--sc:${TSTATUS[tStatus(t)].color}"><i></i>${TSTATUS[tStatus(t)].label}</span></td>
     <td class="num">${fpx(num(t.entry))}</td><td class="num">${fpx(num(t.stop))}</td><td class="num">${fpx(num(t.target))}</td><td class="num">${rrText(c)}</td><td>${alignChip(t)}</td></tr>`; }).join('')
-    : '<tr><td colspan="8"><div class="empty" style="border:0">Nessuna idea attiva o in watchlist.</div></td></tr>';
+    : `<tr><td colspan="8"><div class="empty" style="border:0">${tx('Nessuna idea attiva o in watchlist.')}</div></td></tr>`;
   $$('#home-trades tr.clickable').forEach(tr => tr.onclick = () => { location.hash = '#trades'; });
 }
 
@@ -736,26 +745,26 @@ function openTradeModal(id) {
   const t = id ? S.trades.find(x => x.id === id) : { instrument: '', dir: 'long', status: 'watchlist', horizon: 'medio', conv: 2, thesis: '', drivers: '', trigger: '', invalid: '', note: '', date_open: '', date_close: '' };
   const sel = (idn, opts, cur) => `<select id="${idn}">${Object.entries(opts).map(([k, l]) => `<option value="${k}" ${String(cur) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const inp = (idn, label, val, extra = '') => `<div class="field s2"><label>${label}</label><input id="${idn}" inputmode="decimal" value="${val ?? ''}" ${extra}></div>`;
-  openModal(`<h3>${id ? 'Modifica idea' : 'Nuova idea di trade'}</h3><div class="sub">Livelli, tesi e invalidazione. R:R e allineamento ai bias si calcolano da soli.</div>
+  openModal(`<h3>${id ? tx('Modifica idea') : tx('Nuova idea di trade')}</h3><div class="sub">${tx('Livelli, tesi e invalidazione. R:R e allineamento ai bias si calcolano da soli.')}</div>
     <div class="form-grid">
-      <div class="field s3"><label>Strumento (coppia o asset)</label><input id="t-inst" value="${esc(t.instrument)}" placeholder="es. EUR/USD"></div>
-      <div class="field s3"><label>Direzione</label>${sel('t-dir', { long: '▲ Long', short: '▼ Short' }, tDir(t))}</div>
-      <div class="field s2"><label>Stato</label>${sel('t-status', Object.fromEntries(Object.entries(TSTATUS).map(([k, v]) => [k, v.label])), tStatus(t))}</div>
-      <div class="field s2"><label>Orizzonte</label>${sel('t-hor', THORIZ, t.horizon || 'medio')}</div>
-      <div class="field s2"><label>Convinzione</label>${sel('t-conv', TCONV, t.conv || 2)}</div>
-      ${inp('t-entry', 'Ingresso', t.entry)}${inp('t-stop', 'Stop', t.stop)}${inp('t-target', 'Target 1', t.target)}
-      ${inp('t-target2', 'Target 2 (opz.)', t.target2)}${inp('t-risk', 'Rischio % del conto', t.risk_pct)}${inp('t-result', 'Risultato (R)', t.result, 'placeholder="se chiusa"')}
-      <div class="field s3"><label>Data apertura</label><input id="t-dopen" type="date" value="${esc(t.date_open || '')}"></div>
-      <div class="field s3"><label>Data chiusura</label><input id="t-dclose" type="date" value="${esc(t.date_close || '')}"></div>
+      <div class="field s3"><label>${tx('Strumento (coppia o asset)')}</label><input id="t-inst" value="${esc(t.instrument)}" placeholder="${tx('es. EUR/USD')}"></div>
+      <div class="field s3"><label>${tx('Direzione')}</label>${sel('t-dir', { long: '▲ Long', short: '▼ Short' }, tDir(t))}</div>
+      <div class="field s2"><label>${tx('Stato')}</label>${sel('t-status', Object.fromEntries(Object.entries(TSTATUS).map(([k, v]) => [k, v.label])), tStatus(t))}</div>
+      <div class="field s2"><label>${tx('Orizzonte')}</label>${sel('t-hor', THORIZ, t.horizon || 'medio')}</div>
+      <div class="field s2"><label>${tx('Convinzione')}</label>${sel('t-conv', TCONV, t.conv || 2)}</div>
+      ${inp('t-entry', tx('Ingresso'), t.entry)}${inp('t-stop', tx('Stop'), t.stop)}${inp('t-target', tx('Target 1'), t.target)}
+      ${inp('t-target2', tx('Target 2 (opz.)'), t.target2)}${inp('t-risk', tx('Rischio % del conto'), t.risk_pct)}${inp('t-result', tx('Risultato (R)'), t.result, `placeholder="${tx('se chiusa')}"`)}
+      <div class="field s3"><label>${tx('Data apertura')}</label><input id="t-dopen" type="date" value="${esc(t.date_open || '')}"></div>
+      <div class="field s3"><label>${tx('Data chiusura')}</label><input id="t-dclose" type="date" value="${esc(t.date_close || '')}"></div>
       <div class="field"><div id="t-preview" class="dirs" style="font-size:12px"></div></div>
-      <div class="field"><label>Tesi</label><textarea id="t-thesis" placeholder="Perché questa idea?">${esc(t.thesis)}</textarea></div>
-      <div class="field s3"><label>Driver macro (uno per riga)</label><textarea id="t-drivers" placeholder="Tassi, inflazione, PIL, rischi…">${esc(t.drivers)}</textarea></div>
-      <div class="field s3"><label>Trigger d'ingresso</label><textarea id="t-trigger" placeholder="Cosa aspetti per entrare?">${esc(t.trigger)}</textarea></div>
-      <div class="field"><label>Invalidazione</label><input id="t-invalid" value="${esc(t.invalid)}" placeholder="Cosa ti dice che l'idea è sbagliata?"></div>
-      <div class="field"><label>Note</label><textarea id="t-note">${esc(t.note)}</textarea></div>
+      <div class="field"><label>${tx('Tesi')}</label><textarea id="t-thesis" placeholder="${tx('Perché questa idea?')}">${esc(t.thesis)}</textarea></div>
+      <div class="field s3"><label>${tx('Driver macro (uno per riga)')}</label><textarea id="t-drivers" placeholder="${tx('Tassi, inflazione, PIL, rischi…')}">${esc(t.drivers)}</textarea></div>
+      <div class="field s3"><label>${tx("Trigger d'ingresso")}</label><textarea id="t-trigger" placeholder="${tx('Cosa aspetti per entrare?')}">${esc(t.trigger)}</textarea></div>
+      <div class="field"><label>${tx('Invalidazione')}</label><input id="t-invalid" value="${esc(t.invalid)}" placeholder="${tx("Cosa ti dice che l'idea è sbagliata?")}"></div>
+      <div class="field"><label>${tx('Note')}</label><textarea id="t-note">${esc(t.note)}</textarea></div>
     </div>
-    <div class="modal-foot"><div>${id ? '<button class="btn danger" id="m-del">Elimina</button>' : ''}</div>
-      <div class="actions"><button class="btn" id="m-cancel">Annulla</button><button class="btn primary" id="m-save">Salva</button></div></div>`);
+    <div class="modal-foot"><div>${id ? `<button class="btn danger" id="m-del">${tx('Elimina')}</button>` : ''}</div>
+      <div class="actions"><button class="btn" id="m-cancel">${tx('Annulla')}</button><button class="btn primary" id="m-save">${tx('Salva')}</button></div></div>`);
 
   const read = () => ({
     instrument: $('#t-inst').value.trim(), dir: $('#t-dir').value, status: $('#t-status').value, horizon: $('#t-hor').value, conv: parseInt($('#t-conv').value, 10),
@@ -765,23 +774,23 @@ function openTradeModal(id) {
   });
   const preview = () => {
     const d = read(), c = tCalc(d), a = tAlign(d);
-    $('#t-preview').innerHTML = `<div class="dir-row"><span>R:R</span><b>${c.rr == null ? '—' : '1 : ' + c.rr}${c.rr2 != null ? ' · T2 1 : ' + c.rr2 : ''}${c.ok ? '' : ' <span style="color:var(--warn)">⚠ livelli incoerenti con la direzione</span>'}</b></div>
-      <div class="dir-row"><span>Bias</span><b>${a ? alignChip(d) : '<span class="chip flat">coppia non riconosciuta</span>'}</b></div>`;
+    $('#t-preview').innerHTML = `<div class="dir-row"><span>${tx('R:R')}</span><b>${c.rr == null ? '—' : '1 : ' + c.rr}${c.rr2 != null ? ' · T2 1 : ' + c.rr2 : ''}${c.ok ? '' : ` <span style="color:var(--warn)">${tx('⚠ livelli incoerenti con la direzione')}</span>`}</b></div>
+      <div class="dir-row"><span>${tx('Bias')}</span><b>${a ? alignChip(d) : `<span class="chip flat">${tx('coppia non riconosciuta')}</span>`}</b></div>`;
   };
   $$('#modal input, #modal select').forEach(el => { el.oninput = preview; el.onchange = preview; });
   preview();
 
   $('#m-cancel').onclick = closeModal;
   if (id) $('#m-del').onclick = async () => {
-    if (!confirm('Eliminare questa idea? L\'operazione non si può annullare.')) return;
+    if (!confirm(tx('Eliminare questa idea? L\'operazione non si può annullare.'))) return;
     await api('DELETE', `/api/trades/${id}`); S.trades = S.trades.filter(x => x.id !== id); closeModal(); rerender();
   };
   $('#m-save').onclick = async () => {
     const body = read(); if (!body.instrument) { $('#t-inst').focus(); return; }
     try {
       if (id) Object.assign(t, await api('PUT', `/api/trades/${id}`, body)); else S.trades.push(await api('POST', '/api/trades', body));
-      closeModal(); rerender(); toast('Salvato');
-    } catch (e) { toast('Errore nel salvataggio'); }
+      closeModal(); rerender(); toast(tx('Salvato'));
+    } catch (e) { toast(tx('Errore nel salvataggio')); }
   };
 }
 
@@ -794,15 +803,16 @@ function renderSettings() {
   const theme = pref.get('theme', 'fallout'), bub = pref.get('bubble', 'medium'), cc = pref.get('cardcolor', '1') === '1', side = pref.get('side', 'open') === 'open';
   const seg = (name, opts, cur) => `<div class="seg" data-name="${name}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="fade-in">
-    <div class="page-head"><div><div class="eyebrow">Preferenze</div><h1 class="page-title">Impostazioni</h1><p class="page-sub">Le preferenze sono salvate nel browser. I dati restano nel file data.json, solo sul tuo computer.</p></div></div>
+    <div class="page-head"><div><div class="eyebrow">${tx('Preferenze')}</div><h1 class="page-title">${tx('Impostazioni')}</h1><p class="page-sub">${tx('Le preferenze sono salvate nel browser. I dati restano nel file data.json, solo sul tuo computer.')}</p></div></div>
     <div class="settings">
-      <div class="set-row"><div><b>Tema</b><span>Pip-Boy (predefinito, schermo a fosfori verdi), scuro, chiaro o in base al sistema.</span></div>${seg('theme', [['fallout', 'Pip-Boy'], ['dark', 'Scuro'], ['light', 'Chiaro'], ['auto', 'Auto']], theme)}</div>
-      <div class="set-row"><div><b>Colore delle schede</b><span>Le schede prendono il colore del bias del paese.</span></div><button class="switch ${cc ? 'on' : ''}" data-sw="cardcolor"></button></div>
-      <div class="set-row"><div><b>Grandezza delle bolle</b><span>Dimensione delle bolle nella Mappa delle Valute.</span></div>${seg('bubble', [['small', 'Piccole'], ['medium', 'Medie'], ['large', 'Grandi']], bub)}</div>
-      <div class="set-row"><div><b>Menu laterale</b><span>Mostra o nascondi la sidebar.</span></div><button class="switch ${side ? 'on' : ''}" data-sw="side"></button></div>
-      <div class="set-row"><div><b>Backup dei dati</b><span>Scarica una copia di tutto ciò che hai inserito.</span></div><button class="btn" id="export">Esporta JSON</button></div>
+      <div class="set-row"><div><b>${tx('Lingua')}</b><span>${tx('Lingua dell\'interfaccia.')}</span></div>${seg('lang', Object.entries(LANGS), LANG)}</div>
+      <div class="set-row"><div><b>${tx('Tema')}</b><span>${tx('Pip-Boy (predefinito, schermo a fosfori verdi), scuro, chiaro o in base al sistema.')}</span></div>${seg('theme', [['fallout', 'Pip-Boy'], ['dark', tx('Scuro')], ['light', tx('Chiaro')], ['auto', 'Auto']], theme)}</div>
+      <div class="set-row"><div><b>${tx('Colore delle schede')}</b><span>${tx('Le schede prendono il colore del bias del paese.')}</span></div><button class="switch ${cc ? 'on' : ''}" data-sw="cardcolor"></button></div>
+      <div class="set-row"><div><b>${tx('Grandezza delle bolle')}</b><span>${tx('Dimensione delle bolle nella Mappa delle Valute.')}</span></div>${seg('bubble', [['small', tx('Piccole')], ['medium', tx('Medie')], ['large', tx('Grandi')]], bub)}</div>
+      <div class="set-row"><div><b>${tx('Menu laterale')}</b><span>${tx('Mostra o nascondi la sidebar.')}</span></div><button class="switch ${side ? 'on' : ''}" data-sw="side"></button></div>
+      <div class="set-row"><div><b>${tx('Backup dei dati')}</b><span>${tx('Scarica una copia di tutto ciò che hai inserito.')}</span></div><button class="btn" id="export">${tx('Esporta JSON')}</button></div>
     </div></div>`;
-  $$('.seg[data-name] button').forEach(b => b.onclick = () => { const n = b.parentElement.dataset.name; pref.set(n, b.dataset.v); if (n === 'theme') applyTheme(); renderSettings(); });
+  $$('.seg[data-name] button').forEach(b => b.onclick = () => { const n = b.parentElement.dataset.name; pref.set(n, b.dataset.v); if (n === 'theme') applyTheme(); if (n === 'lang') { location.reload(); return; } renderSettings(); });
   $$('.switch').forEach(sw => sw.onclick = () => {
     const k = sw.dataset.sw;
     if (k === 'cardcolor') pref.set('cardcolor', cc ? '0' : '1'); else { pref.set('side', side ? 'hidden' : 'open'); applySide(); }
@@ -815,6 +825,13 @@ function renderSettings() {
   };
 }
 
+/* ───────── testi statici di index.html ───────── */
+function applyStaticI18n() {
+  document.documentElement.lang = LANG;
+  $$('[data-i18n]').forEach(el => { el.textContent = tx(el.dataset.i18n); });
+  $$('[data-i18n-title]').forEach(el => { el.title = tx(el.dataset.i18nTitle); });
+}
+
 /* ───────── sidebar ───────── */
 function applySide() { $('#app').classList.toggle('side-hidden', pref.get('side', 'open') !== 'open'); }
 $('#collapse').onclick = () => { pref.set('side', 'hidden'); applySide(); };
@@ -822,12 +839,12 @@ $('#reopen').onclick = () => { pref.set('side', 'open'); applySide(); };
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => { if (pref.get('theme', 'fallout') === 'auto') applyTheme(); });
 
 /* ───────── tema Pip-Boy: barra di stato e sequenza di avvio ───────── */
-function tick() { const c = $('#pip-clock'); if (c) c.textContent = new Date().toLocaleTimeString('it-IT'); }
+function tick() { const c = $('#pip-clock'); if (c) c.textContent = new Date().toLocaleTimeString(LOCALE); }
 function pipbar() {
   const el = $('#pipbar'); if (!el) return;
   const sur = allSurprises();
-  el.innerHTML = `<span>◄ Dati locali ►</span><span>Paesi <b>${S.countries.length}</b></span><span>Rischi attivi <b>${S.risks.filter(rActive).length}</b></span>
-    <span>Sorprese <b class="pos">+${sur.filter(x => x.s.sig > 0).length}</b> / <b class="neg">-${sur.filter(x => x.s.sig < 0).length}</b></span><span class="pip-clock" id="pip-clock"></span>`;
+  el.innerHTML = `<span>${tx('◄ Dati locali ►')}</span><span>${tx('Paesi')} <b>${S.countries.length}</b></span><span>${tx('Rischi attivi')} <b>${S.risks.filter(rActive).length}</b></span>
+    <span>${tx('Sorprese')} <b class="pos">+${sur.filter(x => x.s.sig > 0).length}</b> / <b class="neg">-${sur.filter(x => x.s.sig < 0).length}</b></span><span class="pip-clock" id="pip-clock"></span>`;
   tick();
 }
 setInterval(tick, 1000);
@@ -835,7 +852,7 @@ function bootSequence() {
   if (document.documentElement.dataset.theme !== 'fallout') return;
   try { if (sessionStorage.getItem('mt_boot')) return; sessionStorage.setItem('mt_boot', '1'); } catch (e) {}
   const el = document.createElement('div'); el.className = 'boot'; document.body.appendChild(el);
-  const text = 'ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\nMACRO TERMINAL  //  ANALISI MACRO-ECONOMICA\n\n> CARICAMENTO DATI LOCALI ........ OK\n> CALIBRAZIONE MAPPA VALUTE ...... OK\n> SEGNALI DI SORPRESA ............ OK\n\nPRONTO.';
+  const text = tx('ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\nMACRO TERMINAL  //  ANALISI MACRO-ECONOMICA\n\n> CARICAMENTO DATI LOCALI ........ OK\n> CALIBRAZIONE MAPPA VALUTE ...... OK\n> SEGNALI DI SORPRESA ............ OK\n\nPRONTO.');
   let i = 0, done = false;
   const end = () => { if (done) return; done = true; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
   el.onclick = end; document.addEventListener('keydown', end, { once: true });
@@ -844,8 +861,8 @@ function bootSequence() {
 
 /* ───────── avvio ───────── */
 (async function boot() {
-  applyTheme(); applySide();
-  try { await load(); } catch (e) { $('#main').innerHTML = '<div class="empty">Impossibile leggere i dati. Il server è in esecuzione?</div>'; return; }
+  applyTheme(); applySide(); applyStaticI18n();
+  try { await load(); } catch (e) { $('#main').innerHTML = `<div class="empty">${tx('Impossibile leggere i dati. Il server è in esecuzione?')}</div>`; return; }
   route();
   bootSequence();
 })();
