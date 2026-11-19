@@ -94,11 +94,12 @@ const impactBars = lv => `<span class="imp ${esc(lv)}" title="${tx('Impatto ' + 
 const flagOf = c => `<span class="fl">${esc(c.flag || '🏳️')}</span>`;
 
 /* ───────── router ───────── */
-const PAGES = { home: renderHome, macro: renderMacro, risks: renderRisks, trades: renderTrades, settings: renderSettings };
+const PAGES = { home: renderHome, macro: renderMacro, risks: renderRisks, trades: renderTrades, tools: renderTools, settings: renderSettings };
 function route() {
   const p = (location.hash || '#home').slice(1);
   const page = PAGES[p] ? p : 'home';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  if (page !== 'home') stopSonar();
   PAGES[page]();
   pipbar();
   window.scrollTo(0, 0);
@@ -150,7 +151,8 @@ function renderHome() {
     <section class="section">
       <div class="section-head">
         <div><div class="eyebrow">${tx('Mappa')}</div><h2 class="section-title">${tx('Mappa delle Valute')}</h2></div>
-        <div class="map-hint"><span>${tx('Trascina le bolle · clic per aprire la scheda')}</span></div>
+        <div class="map-hint"><span>${tx('Trascina le bolle · clic per aprire la scheda')}</span>
+          <button class="btn snd" id="snd" aria-pressed="false"></button></div>
       </div>
       <div class="map-wrap">
         <div class="map" id="map">
@@ -190,7 +192,7 @@ function renderHome() {
   </div>`;
 
   const hs = $('#hide-sample'); if (hs) hs.onclick = () => { pref.set('hide_sample', '1'); renderHome(); };
-  initMap(); renderRates(); renderSurTable(); renderHomeTrades();
+  initMap(); initSound(); renderRates(); renderSurTable(); renderHomeTrades();
 }
 
 function renderRates() {
@@ -318,6 +320,59 @@ function initMap() {
   });
 }
 const clonePos = p => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { x: v.x, y: v.y }]));
+
+/* ───────── suono del radar (sonar da sottomarino, sintetizzato con Web Audio) ───────── */
+let audioCtx = null;
+// Traccia: static/sonar.wav (o .mp3 / .ogg), riprodotta in loop con il suo timing originale.
+// Se il file manca, ripiega su un ping sintetizzato (1050 Hz, 4 ping a ogni giro del radar).
+let sonarEl = null, sonarTried = false;
+async function loadSonarFile() {
+  if (sonarTried) return; sonarTried = true;
+  for (const ext of ['wav', 'mp3', 'ogg']) {
+    try { const r = await fetch('/static/sonar.' + ext, { method: 'HEAD' }); if (r.ok) { sonarEl = new Audio('/static/sonar.' + ext); sonarEl.loop = true; sonarEl.volume = 0.7; return; } } catch (e) {}
+  }
+}
+const soundOn = () => pref.get('sound', '0') === '1';
+function stopSonar() { if (sonarEl) sonarEl.pause(); }
+function sonarPing() {   // ping sintetizzato (solo se manca il file)
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const t0 = audioCtx.currentTime;
+  const out = audioCtx.createGain(); out.gain.value = 0.5; out.connect(audioCtx.destination);
+  [[0, 1], [0.55, 0.28]].forEach(([d, amp]) => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(1050, t0 + d); o.frequency.exponentialRampToValueAtTime(1020, t0 + d + 1.8);
+    g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(amp * 0.6, t0 + d + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 1.8);
+    o.connect(g); g.connect(out); o.start(t0 + d); o.stop(t0 + d + 1.9);
+  });
+}
+async function initSound() {
+  const btn = $('#snd'), bg = $('.map-bg'); if (!btn || !bg) return;
+  await loadSonarFile();
+  if (!$('#snd')) return;   // la pagina è cambiata mentre caricavo
+  const paint = () => {
+    const on = soundOn();
+    btn.setAttribute('aria-pressed', on);
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/>${on ? '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M17 9l5 6M22 9l-5 6"/>'}</svg>${on ? tx('Suono radar: acceso') : tx('Suono radar: spento')}`;
+    btn.classList.toggle('on', on);
+  };
+  btn.onclick = () => {
+    const on = !soundOn();
+    pref.set('sound', on ? '1' : '0');
+    if (on) {
+      if (sonarEl) sonarEl.play().catch(() => {});
+      else try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume().then(sonarPing); } catch (e) {}
+    } else stopSonar();
+    paint();
+  };
+  // senza file: ping sintetizzato, 4 a ogni giro del radar
+  bg.addEventListener('animationiteration', e => {
+    if (sonarEl || e.animationName !== 'sweep' || !soundOn()) return;
+    sonarPing(); [2000, 4000, 6000].forEach(ms => setTimeout(() => { if (soundOn() && document.body.contains(bg)) sonarPing(); }, ms));
+  });
+  // tornando sulla Home con il suono acceso riparte; se il browser lo blocca (nessun clic ancora fatto) resta spento
+  if (soundOn() && sonarEl) sonarEl.play().catch(() => { pref.set('sound', '0'); paint(); });
+  paint();
+}
 
 /* ───────── pagina MACRO PER PAESE ───────── */
 function renderMacro() {
@@ -792,6 +847,30 @@ function openTradeModal(id) {
       closeModal(); rerender(); toast(tx('Salvato'));
     } catch (e) { toast(tx('Errore nel salvataggio')); }
   };
+}
+
+/* ───────── pagina TOOL: gallery di link utili ───────── */
+// Per aggiungere un sito basta una riga qui. cat = categoria, d = descrizione (chiave i18n), u = indirizzo.
+const TOOLS = [
+  { name: 'Trading Economics',       cat: 'Dati',           d: 'Calendario economico, indicatori e previsioni per ogni paese.', u: 'https://tradingeconomics.com/' },
+  { name: 'BlackRock Weekly Market Commentary', cat: 'Analisi', d: 'Il commento settimanale del BlackRock Investment Institute sui mercati.', u: 'https://www.blackrock.com/corporate/insights/blackrock-investment-institute/publications/weekly-commentary' },
+  { name: 'Federal Reserve (FED)',   cat: 'Banche centrali', d: 'Report, comunicati e verbali sulla politica monetaria USA.', u: 'https://www.federalreserve.gov/monetarypolicy.htm', code: 'USD' },
+  { name: 'European Central Bank (BCE)', cat: 'Banche centrali', d: 'Bollettino economico, decisioni e report della BCE.', u: 'https://www.ecb.europa.eu/press/economic-bulletin/html/index.en.html', code: 'EUR' },
+  { name: 'Bank of Canada (BOC)',    cat: 'Banche centrali', d: 'Monetary Policy Report e decisioni sui tassi del Canada.', u: 'https://www.bankofcanada.ca/publications/mpr/', code: 'CAD' },
+  { name: 'Bank of England (BOE)',   cat: 'Banche centrali', d: 'Monetary Policy Report e verbali del MPC del Regno Unito.', u: 'https://www.bankofengland.co.uk/monetary-policy-report/monetary-policy-reports', code: 'GBP' },
+];
+function renderTools() {
+  const cats = [...new Set(TOOLS.map(x => x.cat))];
+  $('#main').innerHTML = `<div class="fade-in">
+    <div class="page-head"><div><div class="eyebrow">${tx('Risorse')}</div><h1 class="page-title">${tx('Tool')}</h1>
+      <p class="page-sub">${tx('I siti che usi ogni giorno per la tua analisi, a portata di clic. Si aprono in una nuova scheda.')}</p></div></div>
+    ${cats.map(cat => `<section class="section"><div class="section-head"><div><div class="eyebrow">${tx('Categoria')}</div><h2 class="section-title">${tx(cat)}</h2></div></div>
+      <div class="tools">${TOOLS.filter(x => x.cat === cat).map((x, i) => {
+        let host = x.u; try { host = new URL(x.u).hostname.replace(/^www\./, ''); } catch (e) {}
+        return `<a class="tool" href="${esc(x.u)}" target="_blank" rel="noopener noreferrer" style="animation-delay:${i * 45}ms">
+          <div class="tool-top"><span class="tool-ico">${esc(x.code || x.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span><svg viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></div>
+          <h3>${esc(x.name)}</h3><p>${tx(x.d)}</p><small>${esc(host)}</small></a>`; }).join('')}</div></section>`).join('')}
+  </div>`;
 }
 
 /* ───────── IMPOSTAZIONI ───────── */

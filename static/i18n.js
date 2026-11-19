@@ -129,6 +129,18 @@ window.EN = {
     'ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\nMACRO TERMINAL  //  MACRO-ECONOMIC ANALYSIS\n\n> LOADING LOCAL DATA ............. OK\n> CALIBRATING CURRENCY MAP ....... OK\n> SURPRISE SIGNALS ............... OK\n\nREADY.',
   'Impossibile leggere i dati. Il server è in esecuzione?': 'Unable to read the data. Is the server running?',
 
+  // tool
+  'Tool': 'Tools', 'Risorse': 'Resources', 'Categoria': 'Category', 'Dati': 'Data', 'Analisi': 'Analysis', 'Banche centrali': 'Central banks',
+  'I siti che usi ogni giorno per la tua analisi, a portata di clic. Si aprono in una nuova scheda.': 'The sites you use every day for your analysis, one click away. They open in a new tab.',
+  'Calendario economico, indicatori e previsioni per ogni paese.': 'Economic calendar, indicators and forecasts for every country.',
+  'Il commento settimanale del BlackRock Investment Institute sui mercati.': 'The BlackRock Investment Institute weekly commentary on the markets.',
+  'Report, comunicati e verbali sulla politica monetaria USA.': 'Reports, statements and minutes on US monetary policy.',
+  'Bollettino economico, decisioni e report della BCE.': 'Economic bulletin, decisions and reports from the ECB.',
+  'Monetary Policy Report e decisioni sui tassi del Canada.': "Monetary Policy Report and Canada's rate decisions.",
+  'Monetary Policy Report e verbali del MPC del Regno Unito.': 'Monetary Policy Report and MPC minutes for the UK.',
+
+  'Suono radar: acceso': 'Radar sound: on', 'Suono radar: spento': 'Radar sound: off',
+
   // index.html
   'Home': 'Home', 'Dati inseriti a mano': 'Manually entered data',
   'Nascondi menu': 'Hide menu', 'Mostra menu': 'Show menu',

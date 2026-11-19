@@ -520,11 +520,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   background-size: 12.5% 12.5%, 12.5% 12.5%, 100% 100%; opacity: .95;
 }
 [data-theme="fallout"] .map-bg::before {
-  content: ""; position: absolute; left: 50%; top: 50%; width: 175%; aspect-ratio: 1; border-radius: 50%; pointer-events: none;
+  /* quadrato centrato con sole percentuali (padding/margin % = larghezza): il centro resta sempre al centro della mappa, anche prima che il layout sia stabile */
+  content: ""; position: absolute; left: 50%; top: 50%; width: 175%; height: 0; padding-top: 175%; margin-left: -87.5%; margin-top: -87.5%;
+  box-sizing: content-box; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%;
   background: conic-gradient(from 0deg, transparent 0deg 292deg, rgba(61, 255, 143, .22) 358deg, rgba(150, 255, 190, .55) 360deg);
-  transform: translate(-50%, -50%) rotate(0deg); animation: sweep 8s linear infinite;
+  transform: rotate(0deg); animation: sweep 8s linear infinite;
 }
-@keyframes sweep { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 [data-theme="fallout"] .bubble { background: color-mix(in srgb, var(--c) 14%, #000); border: 1.5px solid var(--c); box-shadow: 0 0 12px -3px var(--c); color: var(--text); }
 [data-theme="fallout"] .bubble:hover { background: color-mix(in srgb, var(--c) 30%, #000); }
 [data-theme="fallout"] .bubble .cd, [data-theme="fallout"] .bubble .fl { text-shadow: none; }
@@ -582,3 +584,20 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tc-thesis { margin: 10px 0 0; color: var(--text-2); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
 .nav a span { white-space: nowrap; }
+
+/* ───────── pagina Tool ───────── */
+.tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
+.tool { display: flex; flex-direction: column; gap: 8px; padding: 18px; color: inherit; text-decoration: none; background: var(--surface); border: 1px solid var(--line-strong); border-top: 2px solid var(--accent); transition: border-color .15s, background .15s, transform .15s; animation: rise .35s both; }
+.tool:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); transform: translateY(-2px); }
+.tool-top { display: flex; align-items: center; justify-content: space-between; color: var(--text-2); }
+.tool-top svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tool:hover .tool-top svg { color: var(--accent); }
+.tool-ico { display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .08em; color: var(--accent); border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.tool h3 { margin: 4px 0 0; font-size: 15px; font-weight: 600; }
+.tool p { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; flex: 1; }
+.tool small { color: var(--text-3); font-size: 11px; letter-spacing: .04em; }
+
+.snd { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.snd svg { width: 16px; height: 16px; }
+.snd.on { color: var(--accent); border-color: var(--accent); }
+.map-hint:has(.snd) { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
