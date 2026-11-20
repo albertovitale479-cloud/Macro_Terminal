@@ -156,3 +156,6 @@ Object.assign(window.EN, {
   'Nessun tool. Aggiungine uno con “Nuovo tool”.': 'No tools yet. Add one with “New tool”.',
   'Inserisci un nome e un link valido (https://…)': 'Enter a name and a valid link (https://…)',
 });
+
+// suono radar: audio in attesa di un clic
+Object.assign(window.EN, { 'Suono radar: tocca per riattivare': 'Radar sound: tap to resume' });

@@ -99,7 +99,7 @@ function route() {
   const p = (location.hash || '#home').slice(1);
   const page = PAGES[p] ? p : 'home';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
-  if (page !== 'home') stopSonar();
+  if (page !== 'home') silenceSonar();
   PAGES[page]();
   pipbar();
   window.scrollTo(0, 0);
@@ -335,15 +335,19 @@ async function loadSonarFile() {
   } catch (e) {}
 }
 const soundOn = () => pref.get('sound', '0') === '1';
-function stopSonar() {
+function stopSonar() {   // spegnimento vero (pulsante "spento"): ferma tutto
   stopSea(); cancelAnimationFrame(sweepRAF); sweepRAF = 0; lastAng = null;
+}
+function silenceSonar() {   // cambio pagina: tace ma tiene vivo l'audio, così al ritorno riparte subito (Safari non riaccende un audio fermo da solo)
+  muteSea(); cancelAnimationFrame(sweepRAF); sweepRAF = 0; lastAng = null;
 }
 
 /* — mare di fondo: rumore bruno filtrato, con un lentissimo "respiro" del volume. Generato qui: nessun file, loop senza stacchi. — */
 const SEA_VOL = 0.03;      // volume del mare (molto basso)
 let sea = null;
 function startSea() {
-  if (sea || !audioCtx) return;
+  if (!audioCtx) return;
+  if (sea) { sea.master.gain.setTargetAtTime(1, audioCtx.currentTime, 0.08); return; }   // già avviato: basta riportare il volume
   const sr = audioCtx.sampleRate, len = Math.floor(sr * 6), f = Math.floor(sr * 0.5);
   const buf = audioCtx.createBuffer(1, len, sr), d = buf.getChannelData(0);
   let last = 0; for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
@@ -352,12 +356,14 @@ function startSea() {
   const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
   const g = audioCtx.createGain(); g.gain.value = SEA_VOL;
   const lfo = audioCtx.createOscillator(), lg = audioCtx.createGain(); lfo.frequency.value = 0.1; lg.gain.value = SEA_VOL * 0.45;
-  lfo.connect(lg); lg.connect(g.gain); src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
-  src.start(); lfo.start(); sea = { src, lfo, g };
+  const master = audioCtx.createGain(); master.gain.value = 1;
+  lfo.connect(lg); lg.connect(g.gain); src.connect(lp); lp.connect(g); g.connect(master); master.connect(audioCtx.destination);
+  src.start(); lfo.start(); sea = { src, lfo, g, master };
 }
+function muteSea() { if (sea && audioCtx) sea.master.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05); }
 function stopSea() {
   if (!sea) return;
-  try { sea.src.stop(); sea.lfo.stop(); sea.g.disconnect(); } catch (e) {}
+  try { sea.src.stop(); sea.lfo.stop(); sea.g.disconnect(); sea.master.disconnect(); } catch (e) {}
   sea = null;
 }
 
@@ -400,6 +406,7 @@ function tickSweep() {
 }
 async function startSound() {
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.onstatechange = () => paintSnd && paintSnd();   // l'etichetta del pulsante segue lo stato reale dell'audio
   await Promise.race([audioCtx.resume(), new Promise(r => setTimeout(r, 400))]);
   if (audioCtx.state !== 'running') throw new Error('audio bloccato');
   await loadSonarFile();
@@ -422,7 +429,7 @@ async function initSound() {
   const paint = () => {
     const on = soundOn();
     btn.setAttribute('aria-pressed', on);
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/>${on ? '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M17 9l5 6M22 9l-5 6"/>'}</svg>${on ? tx('Suono radar: acceso') : tx('Suono radar: spento')}`;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/>${on ? '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M17 9l5 6M22 9l-5 6"/>'}</svg>${on ? (audioCtx && audioCtx.state !== 'running' ? tx('Suono radar: tocca per riattivare') : tx('Suono radar: acceso')) : tx('Suono radar: spento')}`;
     btn.classList.toggle('on', on);
   };
   btn.onclick = () => {
@@ -431,10 +438,20 @@ async function initSound() {
     if (on) startSound().catch(() => { pref.set('sound', '0'); paint(); }); else stopSonar();
     paint();
   };
-  // tornando sulla Home con il suono acceso riparte; se il browser lo blocca (nessun clic ancora fatto) resta spento
-  if (soundOn()) startSound().catch(() => { pref.set('sound', '0'); paint(); });
+  // tornando sulla Home con il suono acceso riparte. Se la pagina non ha ancora mai avuto un clic il browser blocca l'audio: resta spento.
+  // Se invece l'audio era già attivo e il browser lo ha solo sospeso, il suono resta "acceso" e riparte al primo clic.
+  paintSnd = paint;
+  if (soundOn()) { const unlocked = !!audioCtx; startSound().then(paint).catch(() => { if (!unlocked) pref.set('sound', '0'); paint(); }); }
   paint();
 }
+let paintSnd = null;
+// Safari (e altri) riaccendono l'audio sospeso solo dentro un clic o un tasto: a ogni gesto lo rimettiamo in marcia, prima che la pagina cambi
+function unlockAudio() {
+  if (!audioCtx || !soundOn()) return;
+  if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
+  if ($('#map') && (audioCtx.state !== 'running' || !sea || !sweepRAF)) startSound().then(() => paintSnd && paintSnd()).catch(() => {});
+}
+['pointerdown', 'keydown', 'touchend'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
 
 /* ───────── pagina MACRO PER PAESE ───────── */
 function renderMacro() {
